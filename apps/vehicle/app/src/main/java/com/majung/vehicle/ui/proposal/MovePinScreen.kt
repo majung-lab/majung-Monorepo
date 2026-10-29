@@ -43,7 +43,7 @@ import com.majung.vehicle.ui.theme.SecondaryButton
 import com.majung.vehicle.ui.theme.card
 
 /** Figma C10 지도: 스타필드 하남 출입구 4곳 + 지금 핀(서문) */
-private val C10_MAP = MapScene(
+internal val STARFIELD_MAP = MapScene(
     background = Color(0xFF1A2129),
     canvasX = 110f, canvasY = -190f, canvasW = 1000f, canvasH = 900f,
     layers = listOf(
@@ -73,7 +73,7 @@ private val C10_MAP = MapScene(
     ),
 )
 
-private val PinTag = Color(0xFFFF7A45)
+internal val PinTag = Color(0xFFFF7A45)
 
 // C10 운전자가 위치 바꾸기 — 지도를 끌어 핀을 맞추고 제안 → 가족 응답 대기
 // ponytail: 핀 → 가까운 출입구 계산은 시설 데이터 붙일 때. 지금은 Figma 예시값.
@@ -92,7 +92,7 @@ fun MovePinScreen(
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
         Box(Modifier.width(820.dp).fillMaxHeight()) {
-            MockMap(C10_MAP, Modifier.fillMaxSize(), onPan = if (waiting || driving) null else ({ moved = true }))
+            MockMap(STARFIELD_MAP, Modifier.fillMaxSize(), onPan = if (waiting || driving) null else ({ moved = true }))
             Text(
                 "지도를 움직여 핀을 맞춰 주세요",
                 Modifier.padding(16.dp).card(Ink.surface, 21).padding(horizontal = 15.dp, vertical = 9.dp),
