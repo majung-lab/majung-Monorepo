@@ -365,7 +365,7 @@ button {
 .target-info { display: flex; justify-content: space-between; align-items: flex-start; }
 .target-name { margin: 0; font-size: 20px; font-weight: 700; }
 .target-note { margin: 2px 0 0; font-size: 14px; }
-.sheet .btn-primary { margin-top: 16px; }
+.target-info + .btn-primary { margin-top: 16px; }
 .btn-primary:disabled { background: #efefef; color: #000; cursor: default; }
 .waiting-title {
   margin: 0;
@@ -391,3 +391,24 @@ button {
   border-radius: 14px;
   font-size: 16px;
 }
+
+/* ── Leaflet 지도 ── */
+.leaflet-host { position: absolute; inset: 0; z-index: 0; }
+.map > :not(.leaflet-host) { z-index: 500; }
+.pin { position: relative; }
+.pin img { display: block; }
+.pin-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  translate: -50% 0;
+  padding: 2px 8px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font: 700 12px 'Noto Sans KR', sans-serif;
+}
+.pin-proposed .pin-label { background: #d9480f; }
+.pin-ap .pin-label { background: #fff; color: var(--ink-sub); font-weight: 400; bottom: auto; top: 100%; }
+.leaflet-control-attribution { font-size: 10px; }
