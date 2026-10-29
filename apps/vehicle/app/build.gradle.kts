@@ -36,6 +36,11 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    // 화면 스냅샷(Roborazzi): ./gradlew testDebugUnitTest → app/build/outputs/roborazzi/*.png
+    testOptions.unitTests {
+        isIncludeAndroidResources = true
+        all { it.systemProperty("roborazzi.test.record", "true") }
+    }
 }
 
 dependencies {
@@ -51,4 +56,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
