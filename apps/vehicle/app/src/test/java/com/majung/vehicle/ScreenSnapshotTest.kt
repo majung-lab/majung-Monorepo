@@ -16,6 +16,8 @@ import com.majung.vehicle.ui.moving.MovingScreen
 import com.majung.vehicle.ui.place.PlaceScreen
 import com.majung.vehicle.ui.proposal.MovePinScreen
 import com.majung.vehicle.ui.proposal.ProposalReceivedScreen
+import com.majung.vehicle.ui.proposal.ProposalResult
+import com.majung.vehicle.ui.proposal.ResultBanner
 import com.majung.vehicle.ui.proposal.SAMPLE_FAMILY_PROPOSAL
 import com.majung.vehicle.ui.review.ReviewScreen
 import org.junit.Test
@@ -25,7 +27,19 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 // Figma 대조용 스냅샷. 화면 추가 시 SCREENS에 한 줄.
-private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
+private val C12: List<Pair<String, @Composable () -> Unit>> = ProposalResult.entries.map { r ->
+    val accepted = r == ProposalResult.ACCEPTED
+    val screen: @Composable () -> Unit = {
+        MovingScreen(
+            "스타필드 하남 · 픽업하기", if (accepted) "북문 로비" else "서문 로비", 12, FamilyStatus("준비됐어요", "14:31"),
+            onChangePlace = {}, changed = accepted,
+            banner = { ResultBanner(r, "서문 로비", "북문 로비") {} },
+        )
+    }
+    "C12_${r.name.lowercase()}" to screen
+}
+
+private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf<Pair<String, @Composable () -> Unit>>(
     "C01_home" to { HomeScreen(driving = false) },
     "C02_destination" to { DestinationScreen(initialQuery = "스타필드") },
     "C03_mode" to { ModeScreen("스타필드 하남") },
@@ -44,7 +58,7 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     "C10_move_pin" to { MovePinScreen("서문 로비") },
     "C11_proposal_received" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL) },
     "C11_proposal_received_driving" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL, driving = true) },
-)
+) + C12
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

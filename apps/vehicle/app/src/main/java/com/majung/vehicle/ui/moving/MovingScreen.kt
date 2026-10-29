@@ -43,13 +43,26 @@ fun MovingScreen(
     family: FamilyStatus?,
     onArrived: () -> Unit = {},
     onChangePlace: (() -> Unit)? = null,
+    changed: Boolean = false,
+    banner: (@Composable () -> Unit)? = null,
 ) {
+    Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
         Column(Modifier.weight(1f)) {
             BrandBar(context)
             Spacer(Modifier.height(134.dp))
             Text("픽업 장소로 가는 중", color = Ink.sub, fontSize = 18.sp)
-            Text(destination, Modifier.padding(top = 4.dp), Ink.text, 52.sp, fontWeight = FontWeight.Bold, lineHeight = 60.sp)
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(destination, color = Ink.text, fontSize = 52.sp, fontWeight = FontWeight.Bold, lineHeight = 60.sp)
+                if (changed) {
+                    Text(
+                        "바뀐 장소",
+                        Modifier.padding(start = 14.dp).clip(RoundedCornerShape(8.dp)).background(Ink.okSurface)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        Ink.ok, 16.sp, fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 // TODO: NaviResult 연결 (실패 시 문구 교체)
                 Icon(painterResource(R.drawable.ic_check_green), null, tint = Color.Unspecified)
@@ -73,6 +86,8 @@ fun MovingScreen(
             }
             onChangePlace?.let { OutlineButton("위치 바꾸기", it, Modifier.fillMaxWidth()) }
         }
+    }
+    banner?.invoke()
     }
 }
 
