@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +38,9 @@ object Ink {
     val tag = Color(0xFF24313B)
     val subOnAccent = Color(0xFFC9D2DA)
     val accentSurface = Color(0xFF2A2312)
+    val accentTag = Color(0xFF3A3018)
+    val accentBody = Color(0xFFE6D3AE)
+    val info = Color(0xFF1A2633)
     val accent = Color(0xFFF5A524)
     val onAccent = Color(0xFF1A1300)
 }
@@ -76,10 +80,32 @@ fun BackHeader(title: String, onBack: () -> Unit, subtitle: String? = null) {
 
 /** 작은 회색 태그 (승하차 구역 확인됨, 실내 주차 …) */
 @Composable
-fun Tag(text: String) {
+fun Tag(text: String, color: Color = Ink.tag) {
     Text(
         text,
-        Modifier.clip(RoundedCornerShape(8.dp)).background(Ink.tag).padding(horizontal = 10.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(8.dp)).background(color).padding(horizontal = 10.dp, vertical = 6.dp),
         Ink.text, 14.sp,
     )
+}
+
+/** 주 버튼 (주황) */
+@Composable
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.height(64.dp).clip(RoundedCornerShape(14.dp)).background(Ink.accent).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 보조 버튼 (어두운 카드) */
+@Composable
+fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.height(64.dp).card(Ink.surface, 14).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Ink.text, fontSize = 20.sp)
+    }
 }
