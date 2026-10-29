@@ -42,6 +42,10 @@ object Ink {
     val accentBody = Color(0xFFE6D3AE)
     val info = Color(0xFF1A2633)
     val ok = Color(0xFF5CC28D)
+    val okSurface = Color(0xFF13291D)
+    val warnLine = Color(0xFF6B4F17)
+    val accentMuted = Color(0xFF3A3220)
+    val onAccentMuted = Color(0xFFC9B58A)
     val accent = Color(0xFFF5A524)
     val onAccent = Color(0xFF1A1300)
 }
@@ -102,12 +106,12 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 
 /** 보조 버튼 (어두운 카드) */
 @Composable
-fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, fontSize: Int = 20) {
     Box(
         modifier.height(64.dp).card(Ink.surface, 14).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Ink.text, fontSize = 20.sp)
+        Text(text, color = Ink.text, fontSize = fontSize.sp)
     }
 }
 

@@ -5,6 +5,9 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.home.HomeScreen
 import com.majung.vehicle.domain.model.VisitMode
+import com.majung.vehicle.ui.arrival.DropoffArrivalScreen
+import com.majung.vehicle.ui.arrival.ParkArrivalScreen
+import com.majung.vehicle.ui.arrival.PickupArrivalScreen
 import com.majung.vehicle.ui.invite.InviteScreen
 import com.majung.vehicle.ui.mode.ModeScreen
 import com.majung.vehicle.ui.moving.FamilyStatus
@@ -25,6 +28,11 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     "C05_invite" to { InviteScreen("스타필드 하남 · 북문 로비") },
     "C06_moving" to {
         MovingScreen("스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "14:31"), onChangePlace = {})
+    },
+    "C07_park" to { ParkArrivalScreen("스타필드 하남 · 그냥가기", "북측 주차장") },
+    "C07_dropoff" to { DropoffArrivalScreen("스타필드 하남 · 내려주기", "북문 승하차 구역") },
+    "C07_pickup" to {
+        PickupArrivalScreen("스타필드 하남 · 픽업하기", "북문 로비", listOf("엄마", "지민"), "14:48", 2, setOf("엄마"))
     },
 )
 
