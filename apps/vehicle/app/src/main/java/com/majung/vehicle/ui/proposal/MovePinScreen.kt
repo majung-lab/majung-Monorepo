@@ -34,12 +34,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.majung.vehicle.R
+import com.majung.vehicle.domain.model.LatLng
+import com.majung.vehicle.domain.model.MAP_POINTS
+import com.majung.vehicle.domain.model.distanceM
+import com.majung.vehicle.domain.model.mapPoint
+import com.majung.vehicle.domain.model.nearest
 import com.majung.vehicle.ui.theme.Ink
 import com.majung.vehicle.ui.theme.MapLayer
 import com.majung.vehicle.ui.theme.MapScene
 import com.majung.vehicle.ui.theme.MapText
+import com.majung.vehicle.ui.theme.LocalStaticMap
+import com.majung.vehicle.ui.theme.MapPin
 import com.majung.vehicle.ui.theme.MockMap
+import com.majung.vehicle.ui.theme.OsmMap
 import com.majung.vehicle.ui.theme.SecondaryButton
 import com.majung.vehicle.ui.theme.card
 
@@ -77,7 +86,6 @@ internal val STARFIELD_MAP = MapScene(
 internal val PinTag = Color(0xFFFF7A45)
 
 // C10 운전자가 위치 바꾸기 — 지도를 끌어 핀을 맞추고 제안 → 가족 응답 대기
-// ponytail: 핀 → 가까운 출입구 계산은 시설 데이터 붙일 때. 지금은 Figma 예시값.
 @Composable
 fun MovePinScreen(
     current: String,
@@ -86,30 +94,49 @@ fun MovePinScreen(
     onPropose: (String) -> Unit = {},
     onCancel: () -> Unit = {},
 ) {
-    var moved by remember { mutableStateOf(false) }
-    var waiting by remember { mutableStateOf(false) }
-    val target = if (moved) "북문 로비" else current
+    val here = mapPoint(current)
+    var center by remember { mutableStateOf(here.pos) }
+    var sentTo by remember { mutableStateOf<String?>(null) }
+    var focus by remember { mutableStateOf<LatLng?>(null) }
+    val waiting = sentTo != null
+    val pick = nearest(center)
+    val canSend = pick.snapped && pick.point.id != here.id
+    val distM = distanceM(here.pos, center).roundToInt()
     // 대기 중 뒤로 = 제안 취소 (제안이 조용히 남지 않게)
     val back = if (waiting) onCancel else onBack
     BackHandler(onBack = back)
-    val distM = if (moved) 120 else 0
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
-        Box(Modifier.width(820.dp).fillMaxHeight()) {
-            MockMap(STARFIELD_MAP, Modifier.fillMaxSize(), onPan = if (waiting || driving) null else ({ moved = true }))
+        // 1280dp 기준 820dp(64%) — 좁은 화면에서도 오른쪽 정보가 찌그러지지 않게 비율로
+        Box(Modifier.weight(0.64f).fillMaxHeight()) {
+            if (LocalStaticMap.current) {
+                MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
+            } else {
+                OsmMap(
+                    here.pos, Modifier.fillMaxSize(),
+                    pins = MAP_POINTS.filter { it.id != here.id }.map { MapPin(it.pos, R.drawable.map_c10_access_point, 0.5f) } +
+                        MapPin(here.pos, R.drawable.map_c10_pin_now),
+                    locked = waiting || driving,
+                    focus = focus,
+                    onMoveEnd = { center = it },
+                )
+            }
             Text(
-                "지도를 움직여 핀을 맞춰 주세요",
+                if (waiting) "가족에게 보냈어요" else "지도를 움직여 핀을 맞춰 주세요",
                 Modifier.padding(16.dp).card(Ink.surface, 21).padding(horizontal = 15.dp, vertical = 9.dp),
                 Ink.text, 16.sp,
             )
-            Text(
-                "여기로 바꿀까요?",
-                Modifier.offset(340.dp, 152.dp).size(140.dp, 30.dp).clip(RoundedCornerShape(16.dp)).background(PinTag).padding(top = 5.dp),
-                Ink.bg, 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-            )
-            Image(painterResource(R.drawable.ic_pin_target), null, Modifier.offset(390.dp, 192.dp))
+            // 핀 끝이 지도 한가운데: 태그 30 + 간격 10 + 핀 52 = 92 → 위로 46
+            Column(Modifier.align(Alignment.Center).offset(y = (-46).dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    if (waiting) "응답 기다리는 중" else "여기로 바꿀까요?",
+                    Modifier.size(140.dp, 30.dp).clip(RoundedCornerShape(16.dp)).background(PinTag).padding(top = 5.dp),
+                    Ink.bg, 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+                )
+                Image(painterResource(R.drawable.ic_pin_target), null, Modifier.padding(top = 10.dp))
+            }
         }
-        Column(Modifier.weight(1f).padding(start = 28.dp, end = 28.dp, top = 26.dp, bottom = 26.dp)) {
+        Column(Modifier.weight(0.36f).padding(start = 28.dp, end = 28.dp, top = 26.dp, bottom = 26.dp)) {
             Box(
                 Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Ink.surface).clickable(onClick = back),
                 contentAlignment = Alignment.Center,
@@ -117,8 +144,20 @@ fun MovePinScreen(
                 Icon(painterResource(R.drawable.ic_back), "뒤로", tint = Color.Unspecified)
             }
             Text("지금 픽업 장소 · $current", Modifier.padding(top = 16.dp), Ink.sub, 16.sp)
-            Text(target, Modifier.padding(top = 14.dp), Ink.text, 30.sp, fontWeight = FontWeight.Bold)
-            Text("확인된 승하차 지점", Modifier.padding(top = 14.dp), Ink.ok, 16.sp)
+            Text(
+                sentTo ?: if (pick.snapped) pick.point.name else "지도에서 고른 위치",
+                Modifier.padding(top = 14.dp), Ink.text, 30.sp, fontWeight = FontWeight.Bold,
+            )
+            if (pick.snapped || waiting) {
+                Text("확인된 승하차 지점", Modifier.padding(top = 14.dp), Ink.ok, 16.sp)
+            } else {
+                // 반경을 살짝 벗어나도 끌어서 맞추기 어렵다 → 눌러서 그 지점으로
+                Text(
+                    "가장 가까운 지점: ${pick.point.name} (${pick.distanceM.roundToInt()}m) · 눌러서 맞추기",
+                    Modifier.padding(top = 14.dp).clickable(enabled = !driving) { focus = pick.point.pos },
+                    Ink.accent, 16.sp,
+                )
+            }
             Text("지금 위치에서 ${distM}m", Modifier.padding(top = 16.dp), Ink.sub, 16.sp)
             Spacer(Modifier.weight(1f))
             when {
@@ -126,32 +165,30 @@ fun MovePinScreen(
                     Text("가족 응답 기다리는 중 · 10분 지나면 그대로예요", color = Ink.sub, fontSize = 16.sp)
                     SecondaryButton("제안 취소", onCancel, Modifier.padding(top = 10.dp).fillMaxWidth().height(68.dp))
                 }
-                driving -> Box(
-                    Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(Ink.raised),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("정차 후 조정할 수 있어요", color = Ink.sub, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                }
-                moved -> Box(
+                driving -> DisabledButton("정차 후 조정할 수 있어요")
+                canSend -> Box(
                     Modifier
                         .fillMaxWidth()
                         .height(68.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Ink.accent)
-                        .clickable { waiting = true; onPropose(target) },
+                        .clickable { sentTo = pick.point.name; onPropose(pick.point.name) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("여기로 조정하기", color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
-                else -> Box(
-                    Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(Ink.raised),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("핀을 옮겨 주세요", color = Ink.sub, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                }
+                else -> DisabledButton(if (pick.snapped) "핀을 옮겨 주세요" else "승하차 지점 근처로 옮겨 주세요")
             }
         }
     }
+}
+
+@Composable
+private fun DisabledButton(text: String) = Box(
+    Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(Ink.raised),
+    contentAlignment = Alignment.Center,
+) {
+    Text(text, color = Ink.sub, fontSize = 22.sp, fontWeight = FontWeight.Bold)
 }
 
 @Preview(widthDp = 1280, heightDp = 480)

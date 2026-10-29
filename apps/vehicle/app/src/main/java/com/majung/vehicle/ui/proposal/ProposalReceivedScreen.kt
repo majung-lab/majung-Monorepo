@@ -32,6 +32,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.majung.vehicle.R
+import com.majung.vehicle.domain.model.LatLng
+import com.majung.vehicle.domain.model.mapPoint
+import com.majung.vehicle.ui.theme.LocalStaticMap
+import com.majung.vehicle.ui.theme.MapPin
+import com.majung.vehicle.ui.theme.OsmMap
 import com.majung.vehicle.ui.theme.Ink
 import com.majung.vehicle.ui.theme.MockMap
 import com.majung.vehicle.ui.theme.PrimaryButton
@@ -48,7 +53,6 @@ data class FamilyProposal(
 private val String.short get() = substringBefore(' ')
 
 // C11 가족 제안 받기 — 화면동작정의 기준 (Figma 43:1748 미대조)
-// 지도: 기존 핀(서문, STARFIELD_MAP에 포함) → 제안 핀(북문) 점선
 @Composable
 fun ProposalReceivedScreen(
     proposal: FamilyProposal,
@@ -60,20 +64,34 @@ fun ProposalReceivedScreen(
     var accepted by remember { mutableStateOf<Boolean?>(null) }
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
-        Box(Modifier.width(820.dp).fillMaxHeight()) {
-            MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
-            if (accepted != false) {
-                // 서문(410,240) → 북문(610,60): STARFIELD_MAP 출입구 좌표 + 캔버스 오프셋
-                Canvas(Modifier.fillMaxSize()) {
-                    drawLine(
-                        PinTag, Offset(410.dp.toPx(), 240.dp.toPx()), Offset(610.dp.toPx(), 60.dp.toPx()),
-                        strokeWidth = 3.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f)),
-                    )
+        Box(Modifier.weight(0.64f).fillMaxHeight()) {
+            val from = mapPoint(proposal.from).pos
+            val to = mapPoint(proposal.to).pos
+            if (LocalStaticMap.current) {
+                MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
+                if (accepted != false) {
+                    // 서문(410,240) → 북문(610,60): STARFIELD_MAP 출입구 좌표 + 캔버스 오프셋
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawLine(
+                            PinTag, Offset(410.dp.toPx(), 240.dp.toPx()), Offset(610.dp.toPx(), 60.dp.toPx()),
+                            strokeWidth = 3.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f)),
+                        )
+                    }
+                    Image(painterResource(R.drawable.ic_pin_target), null, Modifier.offset(590.dp, 8.dp))
                 }
-                Image(painterResource(R.drawable.ic_pin_target), null, Modifier.offset(590.dp, 8.dp))
+            } else {
+                // 기존 핀(흰색) → 제안 핀(주황) 점선. 거절하면 제안 핀 삭제
+                OsmMap(
+                    LatLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2), Modifier.fillMaxSize(), zoom = 18.0,
+                    pins = listOfNotNull(
+                        MapPin(if (accepted == true) to else from, R.drawable.map_c10_pin_now),
+                        if (accepted == null) MapPin(to, R.drawable.ic_pin_target) else null,
+                    ),
+                    dashed = if (accepted == null) listOf(from, to) else null,
+                )
             }
         }
-        Column(Modifier.weight(1f).padding(28.dp)) {
+        Column(Modifier.weight(0.36f).padding(28.dp)) {
             Text(
                 when (accepted) {
                     null -> "가족이 만날 곳을 바꾸자고 해요"
