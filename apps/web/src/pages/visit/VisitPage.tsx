@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MockMap from '../../features/map/MockMap';
+import { visitScene } from '../../features/map/scenes';
 import dotMe from '../../assets/icons/dot-me.svg';
 import dotCar from '../../assets/icons/dot-car.svg';
 import swap from '../../assets/icons/swap.svg';
@@ -26,7 +27,7 @@ export default function VisitPage() {
 
   return (
     <main className="screen">
-      <MockMap>
+      <MockMap scene={visitScene}>
         <span className="chip chip-brand">마중</span>
         <span className="chip chip-time">{SAMPLE.updatedAt} 기준</span>
         <button className="zoom" style={{ top: 64 }} aria-label="지도 확대">+</button>
