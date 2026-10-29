@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.home.HomeScreen
+import com.majung.vehicle.ui.mode.ModeScreen
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,6 +15,7 @@ import org.robolectric.annotation.GraphicsMode
 private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     "C01_home" to { HomeScreen(driving = false) },
     "C02_destination" to { DestinationScreen(initialQuery = "스타필드") },
+    "C03_mode" to { ModeScreen("스타필드 하남") },
 )
 
 @RunWith(RobolectricTestRunner::class)
