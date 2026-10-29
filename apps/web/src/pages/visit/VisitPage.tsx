@@ -90,7 +90,7 @@ export default function VisitPage() {
             </p>
             <p className="place-desc">{place.desc}</p>
           </div>
-          <button className="btn-outline-accent" onClick={() => navigate('proposal')}>
+          <button className="btn-outline-accent" onClick={() => navigate('move')}>
             <img src={swap} alt="" width={14} height={14} />위치 바꾸기
           </button>
         </div>
