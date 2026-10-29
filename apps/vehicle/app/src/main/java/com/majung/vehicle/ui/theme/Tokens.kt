@@ -41,6 +41,7 @@ object Ink {
     val accentTag = Color(0xFF3A3018)
     val accentBody = Color(0xFFE6D3AE)
     val info = Color(0xFF1A2633)
+    val ok = Color(0xFF5CC28D)
     val accent = Color(0xFFF5A524)
     val onAccent = Color(0xFF1A1300)
 }
@@ -107,5 +108,26 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Ink.text, fontSize = 20.sp)
+    }
+}
+
+/** 상단 "마중  스타필드 하남 · 픽업하기" */
+@Composable
+fun BrandBar(context: String) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text("마중", color = Ink.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(context, Modifier.padding(start = 10.dp, bottom = 2.dp), Ink.sub, 16.sp)
+    }
+}
+
+/** 테두리만 주황인 버튼 (위치 바꾸기 등) */
+@Composable
+fun OutlineButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier.height(60.dp).clip(shape).background(Ink.surface).border(2.dp, Ink.accent, shape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Ink.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
