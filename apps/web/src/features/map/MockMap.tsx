@@ -30,6 +30,8 @@ export default function MockMap({ scene, onPan, children }: Props) {
 
   const panHandlers = onPan && {
     onPointerDown: (e: React.PointerEvent) => {
+      // 지도 위 버튼(내 위치 등)은 끌기 대상이 아니다
+      if ((e.target as Element).closest('button')) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
     },
@@ -39,6 +41,7 @@ export default function MockMap({ scene, onPan, children }: Props) {
       onPan();
     },
     onPointerUp: () => { drag.current = null; },
+    onPointerCancel: () => { drag.current = null; },
   };
 
   return (
