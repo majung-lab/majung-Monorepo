@@ -14,6 +14,7 @@ import com.majung.vehicle.ui.mode.ModeScreen
 import com.majung.vehicle.ui.moving.FamilyStatus
 import com.majung.vehicle.ui.moving.MovingScreen
 import com.majung.vehicle.ui.place.PlaceScreen
+import com.majung.vehicle.ui.proposal.MovePinScreen
 import com.majung.vehicle.ui.review.ReviewScreen
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +39,7 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     },
     "C08_review" to { ReviewScreen("스타필드 하남 · 픽업하기", "북문 로비", "비 · 14:48 도착 · 가족 2명 탑승") },
     "C09_history" to { HistoryScreen() },
+    "C10_move_pin" to { MovePinScreen("서문 로비") },
 )
 
 @RunWith(RobolectricTestRunner::class)
