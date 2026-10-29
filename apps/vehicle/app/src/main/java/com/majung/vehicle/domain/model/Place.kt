@@ -29,12 +29,14 @@ data class AccessPoint(
     val reason: String,
     val tags: List<String>,
     val recommended: Boolean = false,
+    /** 지도·가족 화면에 보이는 만날 곳 이름 (Figma: C04 "북문 승하차 구역" → C06 "북문 로비") */
+    val meetName: String = name,
 )
 
 // ponytail: 날씨·시설 API 전까지 Figma 예시.
 const val SAMPLE_WEATHER = "15시부터 비 · 강수확률 70%"
 val SAMPLE_ACCESS_POINTS = listOf(
-    AccessPoint("북문 승하차 구역", "비 예보라 지붕 아래에서 내려 바로 실내로 들어가요", listOf("지붕 있음", "정차 3분"), recommended = true),
+    AccessPoint("북문 승하차 구역", "비 예보라 지붕 아래에서 내려 바로 실내로 들어가요", listOf("지붕 있음", "정차 3분"), recommended = true, meetName = "북문 로비"),
     AccessPoint("정문 앞 도로", "입구는 가깝지만 지붕이 없고 차가 많아요", listOf("지붕 없음")),
 )
 
@@ -60,3 +62,6 @@ val SAMPLE_RECORDS = listOf(
     VisitRecord("롯데월드몰", "10/19 (일)", VisitMode.DROPOFF, "1번 게이트 승하차 구역에 내려줌", "맑음 · 11:20"),
     VisitRecord("현대백화점 판교", "10/12 (일)", VisitMode.PARK, "지하 4층 F구역 주차", "맑음 · 18:05"),
 )
+
+// ponytail: 가족 구성은 초대 기능 전까지 더미
+val SAMPLE_FAMILY = listOf("엄마", "지민")

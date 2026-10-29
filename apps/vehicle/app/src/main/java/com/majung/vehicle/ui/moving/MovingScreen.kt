@@ -32,7 +32,7 @@ import com.majung.vehicle.ui.theme.OutlineButton
 import com.majung.vehicle.ui.theme.card
 
 /** 가족 상태 카드 내용. null이면 카드 숨김 (내려주기·그냥가기) */
-data class FamilyStatus(val label: String, val seenAt: String)
+data class FamilyStatus(val label: String, val detail: String)
 
 // C06 목적지 이동 — 주행 중에도 보이는 화면이라 글자 크게, 버튼 셋 이하
 @Composable
@@ -76,7 +76,7 @@ fun MovingScreen(
                 Column(Modifier.fillMaxWidth().height(134.dp).card(Ink.surface, 16).padding(horizontal = 21.dp, vertical = 20.dp)) {
                     Text("가족", color = Ink.sub, fontSize = 14.sp)
                     Text(it.label, Modifier.padding(top = 8.dp), Ink.text, 22.sp, fontWeight = FontWeight.Medium)
-                    Text("링크 확인 ${it.seenAt}", Modifier.padding(top = 6.dp), Ink.sub, 14.sp)
+                    Text(it.detail, Modifier.padding(top = 6.dp), Ink.sub, 14.sp)
                 }
             }
             Box(
@@ -95,5 +95,5 @@ fun MovingScreen(
 @Preview(widthDp = 1280, heightDp = 480)
 @Composable
 private fun MovingPreview() = MovingScreen(
-    "스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "14:31"), onChangePlace = {},
+    "스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "링크 확인 14:31"), onChangePlace = {},
 )

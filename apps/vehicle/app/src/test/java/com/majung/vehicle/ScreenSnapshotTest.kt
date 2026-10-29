@@ -1,6 +1,8 @@
 package com.majung.vehicle
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.majung.vehicle.ui.theme.LocalStaticMap
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.history.HistoryScreen
@@ -31,7 +33,7 @@ private val C12: List<Pair<String, @Composable () -> Unit>> = ProposalResult.ent
     val accepted = r == ProposalResult.ACCEPTED
     val screen: @Composable () -> Unit = {
         MovingScreen(
-            "스타필드 하남 · 픽업하기", if (accepted) "북문 로비" else "서문 로비", 12, FamilyStatus("준비됐어요", "14:31"),
+            "스타필드 하남 · 픽업하기", if (accepted) "북문 로비" else "서문 로비", 12, FamilyStatus("준비됐어요", "링크 확인 14:31"),
             onChangePlace = {}, changed = accepted,
             banner = { ResultBanner(r, "서문 로비", "북문 로비") {} },
         )
@@ -46,7 +48,7 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf<Pair<St
     "C04_place" to { PlaceScreen("스타필드 하남", VisitMode.PICKUP) },
     "C05_invite" to { InviteScreen("스타필드 하남 · 북문 로비", "http://10.0.2.2:5173/v/ab12cd34") },
     "C06_moving" to {
-        MovingScreen("스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "14:31"), onChangePlace = {})
+        MovingScreen("스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "링크 확인 14:31"), onChangePlace = {})
     },
     "C07_park" to { ParkArrivalScreen("스타필드 하남 · 그냥가기", "북측 주차장") },
     "C07_dropoff" to { DropoffArrivalScreen("스타필드 하남 · 내려주기", "북문 승하차 구역") },
@@ -66,6 +68,8 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf<Pair<St
 class ScreenSnapshotTest {
     @Test
     fun snapshots() = SCREENS.forEach { (name, screen) ->
-        captureRoboImage("build/outputs/roborazzi/$name.png") { screen() }
+        captureRoboImage("build/outputs/roborazzi/$name.png") {
+            CompositionLocalProvider(LocalStaticMap provides true) { screen() }
+        }
     }
 }
