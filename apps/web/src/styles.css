@@ -220,3 +220,32 @@ button {
   background: #eef1f4;
   font-size: 18px;
 }
+
+/* ── W03 종료 ── */
+.ended { padding: 18px 18px 24px; }
+.ended-brand { margin: 0; font-size: 18px; font-weight: 700; }
+.ended-hero { margin-top: 66px; text-align: center; }
+.ended-badge {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff0d1;
+}
+.ended-title { margin: 14px 0 0; font-size: 24px; font-weight: 700; }
+.ended-hero .sub { margin-top: 8px; font-size: 16px; }
+.summary {
+  margin: 43px 0 0;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.summary dt { font-size: 14px; color: var(--ink-sub); }
+.summary dd { margin: 0; font-size: 16px; text-align: right; }
+.ended-foot { margin: auto 0 0; font-size: 14px; line-height: 20px; color: var(--ink-sub); text-align: center; }
