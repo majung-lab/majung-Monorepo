@@ -4,7 +4,10 @@ import androidx.compose.runtime.Composable
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.home.HomeScreen
+import com.majung.vehicle.domain.model.VisitMode
+import com.majung.vehicle.ui.invite.InviteScreen
 import com.majung.vehicle.ui.mode.ModeScreen
+import com.majung.vehicle.ui.place.PlaceScreen
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,6 +19,8 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     "C01_home" to { HomeScreen(driving = false) },
     "C02_destination" to { DestinationScreen(initialQuery = "스타필드") },
     "C03_mode" to { ModeScreen("스타필드 하남") },
+    "C04_place" to { PlaceScreen("스타필드 하남", VisitMode.PICKUP) },
+    "C05_invite" to { InviteScreen("스타필드 하남 · 북문 로비") },
 )
 
 @RunWith(RobolectricTestRunner::class)
