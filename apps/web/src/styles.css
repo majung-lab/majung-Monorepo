@@ -249,3 +249,43 @@ button {
 .summary dt { font-size: 14px; color: var(--ink-sub); }
 .summary dd { margin: 0; font-size: 16px; text-align: right; }
 .ended-foot { margin: auto 0 0; font-size: 14px; line-height: 20px; color: var(--ink-sub); text-align: center; }
+
+/* ── W05 변경 결과 알림 ── */
+.result {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  min-height: 70px;
+  padding: 12px 12px 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  background: #1f7a4a;
+  box-shadow: 0 6px 9px rgba(20, 24, 29, 0.25);
+  color: #fff;
+}
+.result.rejected { background: var(--ink-sub); }
+.result-body { flex: 1; }
+.result-title { margin: 0; font-size: 16px; font-weight: 700; }
+.result-sub { margin: 2px 0 0; font-size: 14px; opacity: 0.9; }
+.result button {
+  width: 50px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.badge-changed {
+  margin-left: 8px;
+  padding: 2px 8px;
+  vertical-align: 2px;
+  border-radius: 6px;
+  background: #e3f4ea;
+  color: #1f5a3a;
+  font-size: 12px;
+}

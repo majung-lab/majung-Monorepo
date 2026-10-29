@@ -21,6 +21,14 @@ export const visitScene: MapScene = {
   label: { text: '스타필드 하남', inset: '26.81% 25.13% 69.36% 53.85%' },
 };
 
+/** W05 바뀜: 만날 곳 핀이 서문 쪽으로 이동 */
+export const visitMovedScene: MapScene = {
+  ...visitScene,
+  layers: visitScene.layers.map((l) =>
+    l[0] === 'w01/pin-meet.svg' ? ['w01/pin-meet.svg', '50.64% 60% 39.57% 31.79%'] : l,
+  ),
+};
+
 /** W02: 지금 만날 곳(검정 핀) → 제안된 곳(주황 핀) */
 export const proposalScene: MapScene = {
   background: '#eef0ea',
