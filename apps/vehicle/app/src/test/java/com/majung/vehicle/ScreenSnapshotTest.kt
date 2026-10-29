@@ -44,7 +44,7 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf<Pair<St
     "C02_destination" to { DestinationScreen(initialQuery = "스타필드") },
     "C03_mode" to { ModeScreen("스타필드 하남") },
     "C04_place" to { PlaceScreen("스타필드 하남", VisitMode.PICKUP) },
-    "C05_invite" to { InviteScreen("스타필드 하남 · 북문 로비") },
+    "C05_invite" to { InviteScreen("스타필드 하남 · 북문 로비", "http://10.0.2.2:5173/v/ab12cd34") },
     "C06_moving" to {
         MovingScreen("스타필드 하남 · 픽업하기", "북문 로비", 12, FamilyStatus("준비됐어요", "14:31"), onChangePlace = {})
     },

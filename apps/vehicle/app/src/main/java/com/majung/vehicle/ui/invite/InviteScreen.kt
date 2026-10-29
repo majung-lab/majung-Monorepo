@@ -15,16 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.majung.vehicle.R
+import com.majung.vehicle.core.qr.qrBitmap
 import com.majung.vehicle.ui.theme.BackHeader
 import com.majung.vehicle.ui.theme.Ink
 import com.majung.vehicle.ui.theme.PrimaryButton
@@ -35,6 +35,7 @@ import com.majung.vehicle.ui.theme.card
 @Composable
 fun InviteScreen(
     pickupLabel: String,
+    link: String,
     onBack: () -> Unit = {},
     onDepart: () -> Unit = {},
     onLater: () -> Unit = {},
@@ -43,8 +44,8 @@ fun InviteScreen(
         BackHeader("링크 전달", onBack)
         Row(Modifier.padding(top = 48.dp)) {
             Box(Modifier.size(300.dp).clip(RoundedCornerShape(18.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-                // TODO: 방문 링크로 실제 QR 생성 (지금은 Figma 자리 이미지)
-                Image(painterResource(R.drawable.img_qr_placeholder), "연결용 QR 코드")
+                val qr = remember(link) { qrBitmap(link, 528) }
+                Image(qr, "연결용 QR 코드: $link", Modifier.size(264.dp))
             }
             Column(Modifier.padding(start = 40.dp)) {
                 Text(
@@ -64,6 +65,7 @@ fun InviteScreen(
                     Text("픽업 장소", color = Ink.sub, fontSize = 16.sp)
                     Text(pickupLabel, Modifier.padding(start = 10.dp), Ink.text, 20.sp, fontWeight = FontWeight.Medium)
                 }
+                Text(link, Modifier.padding(top = 8.dp), Ink.sub, 14.sp)
                 Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     PrimaryButton("픽업 장소로 출발", onDepart, Modifier.width(296.dp))
                     SecondaryButton("나중에 알리기", onLater, Modifier.width(166.dp))
@@ -75,4 +77,4 @@ fun InviteScreen(
 
 @Preview(widthDp = 1280, heightDp = 480)
 @Composable
-private fun InvitePreview() = InviteScreen("스타필드 하남 · 북문 로비")
+private fun InvitePreview() = InviteScreen("스타필드 하남 · 북문 로비", "http://10.0.2.2:5173/v/ab12cd34")

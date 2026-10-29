@@ -18,6 +18,9 @@ android {
         versionName = "0.1.0"
         // 에뮬레이터에서 호스트 PC의 서버 = 10.0.2.2
         buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:4000\"")
+        // QR에 담을 동승자 웹 주소. 휴대폰으로 찍으려면 PC의 LAN IP로: ./gradlew assembleDebug -PwebUrl=http://192.168.0.12:5173
+        val webUrl = (project.findProperty("webUrl") as String?) ?: "http://10.0.2.2:5173"
+        buildConfigField("String", "WEB_URL", "\"$webUrl\"")
     }
 
     buildTypes {
@@ -56,6 +59,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.zxing.core)
+    implementation(libs.osmdroid)
     testImplementation(libs.junit)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)

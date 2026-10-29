@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import java.util.UUID
+import com.majung.vehicle.BuildConfig
 import com.majung.vehicle.core.uxrestriction.UxRestrictionWatcher
 import com.majung.vehicle.domain.model.Place
 import com.majung.vehicle.domain.model.SAMPLE_PLACES
@@ -55,6 +57,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher) {
     var mode by rememberSaveable { mutableStateOf(VisitMode.PICKUP) }
     var point by rememberSaveable { mutableStateOf("북문 로비") }
     var result by rememberSaveable { mutableStateOf<ProposalResult?>(null) }
+    // ponytail: 방문 토큰은 서버 붙기 전까지 앱에서 만든다
+    val token = rememberSaveable { UUID.randomUUID().toString().take(8) }
     // ponytail: 시설 데이터 붙기 전엔 SAMPLE_PLACES에 없는 곳 = 미등록 시설
     val place = SAMPLE_PLACES.firstOrNull { it.name == placeName } ?: Place(placeName, registered = false)
     val home = { screen = Screen.HOME }
@@ -97,6 +101,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher) {
         }
         Screen.INVITE -> InviteScreen(
             "${place.name} · $point",
+            "${BuildConfig.WEB_URL}/v/$token",
             onBack = { screen = Screen.PLACE },
             onDepart = { screen = Screen.MOVING },
             onLater = { screen = Screen.MOVING },
