@@ -80,6 +80,7 @@ private val PinTag = Color(0xFFFF7A45)
 @Composable
 fun MovePinScreen(
     current: String,
+    driving: Boolean = false,
     onBack: () -> Unit = {},
     onPropose: (String) -> Unit = {},
     onCancel: () -> Unit = {},
@@ -91,7 +92,7 @@ fun MovePinScreen(
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
         Box(Modifier.width(820.dp).fillMaxHeight()) {
-            MockMap(C10_MAP, Modifier.fillMaxSize(), onPan = if (waiting) null else ({ moved = true }))
+            MockMap(C10_MAP, Modifier.fillMaxSize(), onPan = if (waiting || driving) null else ({ moved = true }))
             Text(
                 "지도를 움직여 핀을 맞춰 주세요",
                 Modifier.padding(16.dp).card(Ink.surface, 21).padding(horizontal = 15.dp, vertical = 9.dp),
@@ -121,6 +122,12 @@ fun MovePinScreen(
                     Text("가족 응답 기다리는 중 · 10분 지나면 그대로예요", color = Ink.sub, fontSize = 16.sp)
                     SecondaryButton("제안 취소", onCancel, Modifier.padding(top = 10.dp).fillMaxWidth().height(68.dp))
                 }
+                driving -> Box(
+                    Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(Ink.raised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("정차 후 조정할 수 있어요", color = Ink.sub, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
                 moved -> Box(
                     Modifier
                         .fillMaxWidth()
@@ -130,7 +137,7 @@ fun MovePinScreen(
                         .clickable { waiting = true; onPropose(target) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("여기로 바꾸자고 하기", color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("여기로 조정하기", color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
                 else -> Box(
                     Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(Ink.raised),
