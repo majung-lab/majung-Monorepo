@@ -31,6 +31,17 @@ cd apps/vehicle && ./gradlew assembleDebug
 ```
 에뮬레이터에서 호스트 서버는 `10.0.2.2:4000` (`BuildConfig.SERVER_URL`).
 
+## 더미 데이터로 시연 (서버 없이)
+지도는 OpenStreetMap(웹 Leaflet · 차량 osmdroid), 좌표는 스타필드 하남 대략값이다.
+카카오맵 키가 생기면 `apps/web/src/features/map/LeafletMap.tsx`, `apps/vehicle/.../ui/theme/OsmMap.kt`만 바꾼다.
+
+- 동승자 웹: `http://localhost:5173/v/demo?reset&speed=20`
+  - 차가 경로를 따라 움직이고, 35% 지점에서 운전자 제안(W02), 도착 8초 뒤 종료(W03)
+  - 위치 바꾸기(W04)는 5초 뒤 운전자 수락. `?driver=reject` 면 거절
+- 차량 앱: C06에서 가족 상태가 바뀌고 25초 뒤 가족 제안(C11), C10 제안은 5초 뒤 수락(C12)
+  - 휴대폰으로 QR을 찍으려면 PC LAN IP로 빌드: `./gradlew assembleDebug -PwebUrl=http://192.168.0.12:5173`
+- 차량 화면 스냅샷(Figma 대조용): `./gradlew testDebugUnitTest -Psnapshots` → `app/build/outputs/roborazzi/`
+
 ## 규칙
 - API를 바꿀 땐 `contracts/openapi.yaml` → `packages/shared` → 차량 앱 `data/remote/dto` 순서로 맞춘다.
 - Pleos SDK는 `pleos/navi/NaviClient` 뒤에 숨긴다. SDK 받기 전엔 `FakeNaviClient`.
