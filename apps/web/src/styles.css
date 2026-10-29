@@ -1,0 +1,184 @@
+/* Figma: 현대공모전 - 마중 / 동승자 모바일 웹 (390 × 844 기준) */
+:root {
+  --ink: #14181d;
+  --ink-sub: #5a6470;
+  --line: #e1e5ea;
+  --surface: #f3f5f7;
+  --map-bg: #e9ede6;
+  --accent: #f5a524;
+  --accent-ink: #9a5b00;
+  --on-accent: #1a1300;
+  --shadow-up: 0 -4px 8px rgba(20, 24, 29, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.screen {
+  position: relative;
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 지도 ── */
+.map {
+  position: relative;
+  height: 470px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--map-bg);
+}
+.map-layer { position: absolute; display: block; }
+.map-label {
+  position: absolute;
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-sub);
+  text-align: center;
+}
+
+.chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 10px;
+}
+.chip-brand { top: 14px; left: 14px; height: 36px; padding: 0 12px; font-size: 16px; font-weight: 700; }
+.chip-time { top: 18px; right: 14px; height: 30px; padding: 0 10px; font-size: 12px; color: var(--ink-sub); }
+
+.zoom {
+  position: absolute;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.map-views {
+  position: absolute;
+  left: 14px;
+  bottom: 26px;
+  display: flex;
+  gap: 8px;
+}
+.map-views button {
+  height: 40px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+.map-views button[aria-pressed='true'] { border: 2px solid var(--ink); }
+
+/* ── 바텀시트 ── */
+.sheet {
+  position: relative;
+  flex: 1;
+  margin-top: -18px;
+  padding: 18px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow-up);
+}
+.sub { margin: 0; font-size: 14px; color: var(--ink-sub); }
+
+.eta { display: flex; justify-content: space-between; }
+.eta-min { margin: 4px 0 0; font-size: 30px; font-weight: 700; }
+.eta-at { margin: 6px 0 0; font-size: 18px; font-weight: 700; text-align: right; }
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--ink-sub);
+}
+.steps li::before {
+  content: '';
+  display: block;
+  height: 6px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: var(--line);
+}
+.steps li.done::before { background: var(--accent); }
+.steps li[aria-current='step'] { color: var(--ink); }
+
+.place {
+  margin-top: 16px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 112px;
+  background: var(--surface);
+  border-radius: 14px;
+}
+.place-photo {
+  width: 46px;
+  height: 56px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ink-sub);
+}
+.place-body { flex: 1; min-width: 0; }
+.place-label { margin: 0; font-size: 12px; color: var(--ink-sub); }
+.place-name { margin: 2px 0; font-size: 18px; font-weight: 700; }
+.place-desc { margin: 0; font-size: 14px; color: var(--ink-sub); }
+
+.btn-outline-accent {
+  height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.btn-primary {
+  margin-top: auto;
+  height: 56px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 18px;
+  font-weight: 700;
+}
