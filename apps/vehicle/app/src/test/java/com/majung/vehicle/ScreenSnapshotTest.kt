@@ -3,6 +3,7 @@ package com.majung.vehicle
 import androidx.compose.runtime.Composable
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.majung.vehicle.ui.destination.DestinationScreen
+import com.majung.vehicle.ui.history.HistoryScreen
 import com.majung.vehicle.ui.home.HomeScreen
 import com.majung.vehicle.domain.model.VisitMode
 import com.majung.vehicle.ui.arrival.DropoffArrivalScreen
@@ -13,6 +14,7 @@ import com.majung.vehicle.ui.mode.ModeScreen
 import com.majung.vehicle.ui.moving.FamilyStatus
 import com.majung.vehicle.ui.moving.MovingScreen
 import com.majung.vehicle.ui.place.PlaceScreen
+import com.majung.vehicle.ui.review.ReviewScreen
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -34,6 +36,8 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf(
     "C07_pickup" to {
         PickupArrivalScreen("스타필드 하남 · 픽업하기", "북문 로비", listOf("엄마", "지민"), "14:48", 2, setOf("엄마"))
     },
+    "C08_review" to { ReviewScreen("스타필드 하남 · 픽업하기", "북문 로비", "비 · 14:48 도착 · 가족 2명 탑승") },
+    "C09_history" to { HistoryScreen() },
 )
 
 @RunWith(RobolectricTestRunner::class)

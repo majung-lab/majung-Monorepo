@@ -37,3 +37,26 @@ val SAMPLE_ACCESS_POINTS = listOf(
     AccessPoint("북문 승하차 구역", "비 예보라 지붕 아래에서 내려 바로 실내로 들어가요", listOf("지붕 있음", "정차 3분"), recommended = true),
     AccessPoint("정문 앞 도로", "입구는 가깝지만 지붕이 없고 차가 많아요", listOf("지붕 없음")),
 )
+
+/** 목적지 기록 한 줄 */
+data class VisitRecord(
+    val place: String,
+    val date: String,
+    val mode: VisitMode,
+    val outcome: String,
+    val weatherTime: String,
+)
+
+val VisitMode.label: String
+    get() = when (this) {
+        VisitMode.PICKUP -> "픽업하기"
+        VisitMode.PARK -> "그냥가기"
+        VisitMode.DROPOFF -> "내려주기"
+    }
+
+// ponytail: 기록 API 전까지 Figma 예시.
+val SAMPLE_RECORDS = listOf(
+    VisitRecord("스타필드 하남", "10/26 (일)", VisitMode.PICKUP, "북문 로비에서 태움", "비 · 14:52"),
+    VisitRecord("롯데월드몰", "10/19 (일)", VisitMode.DROPOFF, "1번 게이트 승하차 구역에 내려줌", "맑음 · 11:20"),
+    VisitRecord("현대백화점 판교", "10/12 (일)", VisitMode.PARK, "지하 4층 F구역 주차", "맑음 · 18:05"),
+)
