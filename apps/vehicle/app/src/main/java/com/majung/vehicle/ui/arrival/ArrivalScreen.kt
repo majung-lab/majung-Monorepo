@@ -139,7 +139,7 @@ fun ParkArrivalScreen(
         kicker = "${lotName}에 도착했어요",
         question = "어디에 세웠나요?",
         hint = "층을 남겨 두면 목적지 기록에서 다시 볼 수 있어요 (선택)",
-        info = Info("비 와요 · 12°C", "${floor ?: "B2"} → 북문 엘리베이터 2분", "실내 통로로 가면 비 안 맞아요", R.drawable.ic_rain_small),
+        info = Info("비 와요 · 12°C", floor?.let { "$it → 북문 엘리베이터 2분" } ?: "북문 엘리베이터까지 실내 통로", "실내 통로로 가면 비 안 맞아요", R.drawable.ic_rain_small),
         primary = "주차 완료",
         primaryEnabled = true,
         onPrimary = { onParked(floor) },

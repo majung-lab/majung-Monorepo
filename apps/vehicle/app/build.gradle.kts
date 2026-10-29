@@ -36,10 +36,11 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    // 화면 스냅샷(Roborazzi): ./gradlew testDebugUnitTest → app/build/outputs/roborazzi/*.png
+    // 화면 스냅샷(Roborazzi, Figma 대조용 렌더): ./gradlew testDebugUnitTest -Psnapshots
+    //   → app/build/outputs/roborazzi/*.png. 기준 이미지를 커밋하지 않으니 회귀 검사는 아니다.
     testOptions.unitTests {
         isIncludeAndroidResources = true
-        all { it.systemProperty("roborazzi.test.record", "true") }
+        all { it.systemProperty("roborazzi.test.record", project.hasProperty("snapshots").toString()) }
     }
 }
 
@@ -63,3 +64,6 @@ dependencies {
     testImplementation(libs.roborazzi.compose)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// Compose 테스트용 ComponentActivity는 debug 매니페스트(ui-test-manifest)에만 있다
+tasks.matching { it.name == "testReleaseUnitTest" }.configureEach { enabled = false }

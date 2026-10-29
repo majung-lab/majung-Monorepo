@@ -59,6 +59,7 @@ fun ReviewScreen(
     context: String,
     pointName: String,
     summary: String,
+    kicker: String = "픽업 장소 평가",
     onDone: (Rating, List<String>) -> Unit = { _, _ -> },
     onSkip: () -> Unit = {},
 ) {
@@ -68,7 +69,7 @@ fun ReviewScreen(
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp, bottom = 28.dp)) {
         Column(Modifier.weight(1f)) {
             BrandBar(context)
-            Text("픽업 장소 평가", Modifier.padding(top = 20.dp), Ink.sub, 18.sp)
+            Text(kicker, Modifier.padding(top = 20.dp), Ink.sub, 18.sp)
             Text("$pointName 어땠어요?", Modifier.padding(top = 8.dp), Ink.text, 38.sp, fontWeight = FontWeight.Bold, lineHeight = 46.sp)
             Row(Modifier.padding(top = 14.dp).width(812.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Rating.entries.forEach { r ->

@@ -41,6 +41,7 @@ fun MovingScreen(
     destination: String,
     etaMin: Int,
     family: FamilyStatus?,
+    heading: String = "픽업 장소로 가는 중",
     onArrived: () -> Unit = {},
     onChangePlace: (() -> Unit)? = null,
     changed: Boolean = false,
@@ -51,7 +52,7 @@ fun MovingScreen(
         Column(Modifier.weight(1f)) {
             BrandBar(context)
             Spacer(Modifier.height(134.dp))
-            Text("픽업 장소로 가는 중", color = Ink.sub, fontSize = 18.sp)
+            Text(heading, color = Ink.sub, fontSize = 18.sp)
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(destination, color = Ink.text, fontSize = 52.sp, fontWeight = FontWeight.Bold, lineHeight = 60.sp)
                 if (changed) {

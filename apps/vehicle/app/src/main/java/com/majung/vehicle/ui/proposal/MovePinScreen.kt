@@ -1,5 +1,6 @@
 package com.majung.vehicle.ui.proposal
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,6 +89,9 @@ fun MovePinScreen(
     var moved by remember { mutableStateOf(false) }
     var waiting by remember { mutableStateOf(false) }
     val target = if (moved) "북문 로비" else current
+    // 대기 중 뒤로 = 제안 취소 (제안이 조용히 남지 않게)
+    val back = if (waiting) onCancel else onBack
+    BackHandler(onBack = back)
     val distM = if (moved) 120 else 0
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
@@ -107,7 +111,7 @@ fun MovePinScreen(
         }
         Column(Modifier.weight(1f).padding(start = 28.dp, end = 28.dp, top = 26.dp, bottom = 26.dp)) {
             Box(
-                Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Ink.surface).clickable(onClick = onBack),
+                Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Ink.surface).clickable(onClick = back),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(painterResource(R.drawable.ic_back), "뒤로", tint = Color.Unspecified)
