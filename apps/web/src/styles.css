@@ -412,3 +412,13 @@ button {
 .pin-proposed .pin-label { background: #d9480f; }
 .pin-ap .pin-label { background: #fff; color: var(--ink-sub); font-weight: 400; bottom: auto; top: 100%; }
 .leaflet-control-attribution { font-size: 10px; }
+
+.data-notice { margin: 0 0 12px; color: var(--ink-sub); font-size: 12px; }
+.location-note { margin: 12px 0 16px; color: var(--ink-sub); font-size: 13px; line-height: 1.5; }
+.connection-error { position: sticky; top: 0; z-index: 1000; max-width: 480px; margin: 0 auto; padding: 12px; background: #fff0d1; display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.connection-error span { flex: 1; }
+.connection-error button { padding: 8px; flex-shrink: 0; }
+.point-options { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.point-options button { padding: 10px 12px; }
+.point-options button[aria-pressed='true'] { border: 2px solid var(--accent-ink); }
+button:disabled { cursor: default; opacity: .65; }

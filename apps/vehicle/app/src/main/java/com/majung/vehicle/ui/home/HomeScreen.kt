@@ -37,6 +37,9 @@ fun HomeScreen(
     onSearch: () -> Unit = {},
     onRecent: (String) -> Unit = {},
     onHistory: () -> Unit = {},
+    recent: List<String> = RECENT,
+    activeVisit: String? = null,
+    onResume: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize().background(Ink.bg)) {
         if (driving) {
@@ -73,7 +76,7 @@ fun HomeScreen(
                     Ink.sub, 14.sp, letterSpacing = 0.56.sp,
                 )
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RECENT.forEach { name ->
+                    recent.forEach { name ->
                         Text(
                             name,
                             Modifier
@@ -87,9 +90,9 @@ fun HomeScreen(
             }
             Spacer(Modifier.width(32.dp))
             Column(Modifier.width(340.dp).padding(top = 56.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column(Modifier.fillMaxWidth().height(128.dp).card(Ink.surface, 16).padding(horizontal = 22.dp, vertical = 20.dp)) {
+                Column(Modifier.fillMaxWidth().height(128.dp).card(Ink.surface, 16).clickable(enabled = activeVisit != null, onClick = onResume).padding(horizontal = 22.dp, vertical = 20.dp)) {
                     Text("진행 중인 방문", color = Ink.sub, fontSize = 14.sp)
-                    Text("없음", Modifier.padding(top = 10.dp), Ink.text, 18.sp)
+                    Text(activeVisit ?: "없음", Modifier.padding(top = 10.dp), Ink.text, 18.sp)
                     Text("시동을 다시 켜면 여기서 이어서 할 수 있어요", Modifier.padding(top = 8.dp), Ink.sub, 14.sp)
                 }
                 Row(

@@ -32,7 +32,7 @@ private data class ModeItem(val mode: VisitMode, val icon: Int, val title: Strin
 
 private val MODES = listOf(
     ModeItem(VisitMode.PICKUP, R.drawable.ic_mode_pickup, "픽업하기", "가족을 태울 곳을 정하고, 링크로 차 위치를 알려요"),
-    ModeItem(VisitMode.PARK, R.drawable.ic_mode_park, "그냥가기", "날씨에 맞는 근처 주차장을 추천받아요"),
+    ModeItem(VisitMode.PARK, R.drawable.ic_mode_park, "그냥가기", "주차할 곳을 선택해요"),
     ModeItem(VisitMode.DROPOFF, R.drawable.ic_mode_dropoff, "내려주기", "가족이 내릴 곳을 정해요 · 링크 없이 바로 출발"),
 )
 

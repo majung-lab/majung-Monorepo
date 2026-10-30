@@ -39,6 +39,7 @@ fun InviteScreen(
     onBack: () -> Unit = {},
     onDepart: () -> Unit = {},
     onLater: () -> Unit = {},
+    onCancelVisit: (() -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
         BackHeader("링크 전달", onBack)
@@ -69,6 +70,7 @@ fun InviteScreen(
                 Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     PrimaryButton("픽업 장소로 출발", onDepart, Modifier.width(296.dp))
                     SecondaryButton("나중에 알리기", onLater, Modifier.width(166.dp))
+                    onCancelVisit?.let { SecondaryButton("방문 취소", it, Modifier.width(144.dp)) }
                 }
             }
         }

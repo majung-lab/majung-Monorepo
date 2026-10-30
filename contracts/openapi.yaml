@@ -1,0 +1,380 @@
+openapi: 3.1.0
+info:
+  title: Majung visit API
+  version: 1.0.0
+  description: |
+    Maps majung-lab/majung-db SQLite schema to the vehicle and passenger clients.
+    Each visit has separate unguessable driver/passenger capability tokens. A token in
+    a path authorizes that role; visit UUIDs alone authorize nothing. Links expire after
+    24 hours. Device IDs are unguessable UUID history capabilities and must stay private.
+    Every mutation is transactional and idempotent by requestId; retries must keep the
+    same requestId and payload. A stale version returns 409 without applying the change.
+    Every successful mutation increments version. User interfaces must refresh on 409.
+    Facility seed data is EXAMPLE data with temporary coordinates, never verified venues.
+servers:
+  - url: http://localhost:4000
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: Server is ready; the canonical database initialized successfully.
+  /api/facilities:
+    get:
+      operationId: listFacilities
+      responses:
+        '200':
+          description: Facilities, access points, waiting spots and walking connections.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Facility' }
+  /api/visits:
+    post:
+      operationId: createVisit
+      description: |
+        Creates a visit, canonical candidates, and driver/passenger participants.
+        PICKUP/DROPOFF only select allowed PICKUP points; PARK only selects parking entrances.
+        Return the passenger token in the QR link and retain the driver token privately.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateVisitRequest' }
+      responses:
+        '201':
+          description: Created session, or the original session for an identical retry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VisitSession' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    get:
+      operationId: getVisit
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateVisit
+      description: |
+        Driver alone sets phase, vehicle, parkingFloor; passenger alone sets readiness/location.
+        Driver may directly set accessPointId only for PARK/DROPOFF; PICKUP always requires
+        the other participant to accept a proposal. Candidates must belong to this visit.
+        Valid phase transitions are PREPARING -> MOVING -> ARRIVED -> COMPLETED; any active
+        phase may become CANCELLED. Terminal visits cannot be updated, except the separate
+        driver rating endpoint. Location may be null to stop sharing. Both vehicle coordinates
+        must be null together when GPS is unavailable; no fabricated coordinates are required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateVisitRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/proposals:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    post:
+      operationId: createProposal
+      description: Either role may propose another valid candidate; only one pending proposal per visit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProposalRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/proposals/{id}/respond:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+      - { $ref: '#/components/parameters/ProposalId' }
+    post:
+      operationId: respondProposal
+      description: Only the other role may respond. Proposals expire after 10 minutes. Acceptance changes the confirmed candidate atomically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RespondProposalRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/proposals/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+      - { $ref: '#/components/parameters/ProposalId' }
+    delete:
+      operationId: cancelProposal
+      description: The proposer alone may cancel; canonical proposal status becomes EXPIRED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MutationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/rating:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    post:
+      operationId: rateVisit
+      description: Driver alone may save one rating after COMPLETED, before link expiry. Device history retains it after expiry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateVisitRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/history:
+    get:
+      operationId: listHistory
+      description: Most recent 100 visits of this device, including terminal and expired visits. Device ID is a private capability.
+      parameters:
+        - name: driverDeviceId
+          in: query
+          required: true
+          schema: { type: string, minLength: 24, maxLength: 128 }
+      responses:
+        '200':
+          description: Device visit history; does not expose participant tokens or passenger GPS.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HistoryEntry' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  parameters:
+    Token:
+      name: token
+      in: path
+      required: true
+      description: Role-specific bearer capability, not the visit UUID.
+      schema: { type: string }
+    ProposalId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Snapshot:
+      description: Current visit snapshot for the requesting role.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/VisitSnapshot' }
+    Error:
+      description: 400 invalid input, 403 wrong role, 404 unknown link, 409 stale/conflicting state, 410 expired link, 500 internal failure.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code: { type: string }
+              message: { type: string }
+  schemas:
+    Visit:
+      type: object
+      required: [id, facilityId, mode, phase, confirmedAccessPointId, version, passengerReadiness, updatedAt, expiresAt, parkingFloor, completedAt]
+      properties:
+        id: { type: string }
+        facilityId: { type: string }
+        mode: &mode { type: string, enum: [PICKUP, PARK, DROPOFF] }
+        phase: &phase { type: string, enum: [PREPARING, MOVING, ARRIVED, COMPLETED, CANCELLED] }
+        confirmedAccessPointId: { type: string }
+        version: &version { type: integer, minimum: 1 }
+        passengerReadiness: &readiness { type: string, enum: [UNSEEN, SEEN, READY, HEADING_OUT] }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        parkingFloor: { type: [string, 'null'] }
+        completedAt: { type: [string, 'null'], format: date-time }
+    AccessPoint:
+      type: object
+      required: [id, name, lat, lng, description, kind, allowed, waitSpot, walkMinutes, covered]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        lat: &lat { type: number, minimum: -90, maximum: 90 }
+        lng: &lng { type: number, minimum: -180, maximum: 180 }
+        description: { type: string }
+        kind: { type: string, enum: [PICKUP, PARKING_ENTRANCE] }
+        allowed: { type: boolean }
+        waitSpot:
+          type: [object, 'null']
+          required: [name, floor, description]
+          properties:
+            name: { type: string }
+            floor: { type: [string, 'null'] }
+            description: { type: string }
+        walkMinutes: { type: [integer, 'null'] }
+        covered: { type: boolean }
+    Facility:
+      type: object
+      required: [id, name, address, lat, lng, accessPoints, dataStatus]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        lat: *lat
+        lng: *lng
+        accessPoints:
+          type: array
+          items: { $ref: '#/components/schemas/AccessPoint' }
+        dataStatus: { type: string, enum: [EXAMPLE] }
+    MeetingProposal:
+      type: object
+      required: [id, visitId, proposedBy, accessPointId, fromAccessPointId, baseVersion, status, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        visitId: { type: string }
+        proposedBy: &role { type: string, enum: [DRIVER, PASSENGER] }
+        accessPointId: { type: string }
+        fromAccessPointId: { type: string }
+        baseVersion: *version
+        status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, EXPIRED] }
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    PlaceRating:
+      type: object
+      required: [rating, tags, comment]
+      properties:
+        rating: &rating { type: integer, minimum: 1, maximum: 5 }
+        tags: &tags { type: array, maxItems: 10, items: { type: string, maxLength: 80 } }
+        comment: { type: [string, 'null'] }
+    VisitSnapshot:
+      type: object
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, rating]
+      properties:
+        visit: { $ref: '#/components/schemas/Visit' }
+        role: *role
+        facility: { $ref: '#/components/schemas/Facility' }
+        proposals:
+          type: array
+          items: { $ref: '#/components/schemas/MeetingProposal' }
+        vehicle:
+          type: [object, 'null']
+          required: [lat, lng, etaSec, navResult, recordedAt]
+          properties:
+            lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
+            lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
+            etaSec: { type: [integer, 'null'], minimum: 0 }
+            navResult: { type: [string, 'null'], enum: [set, failed, null] }
+            recordedAt: { type: string, format: date-time }
+        passengerLocation:
+          type: [object, 'null']
+          required: [lat, lng, recordedAt]
+          properties:
+            lat: *lat
+            lng: *lng
+            recordedAt: { type: string, format: date-time }
+        rating:
+          oneOf:
+            - { $ref: '#/components/schemas/PlaceRating' }
+            - { type: 'null' }
+    VisitSession:
+      type: object
+      required: [visit, driverToken, passengerToken]
+      properties:
+        visit: { $ref: '#/components/schemas/Visit' }
+        driverToken: { type: string }
+        passengerToken: { type: string }
+    HistoryEntry:
+      type: object
+      required: [visit, facility, rating]
+      properties:
+        visit: { $ref: '#/components/schemas/Visit' }
+        facility: { $ref: '#/components/schemas/Facility' }
+        rating:
+          oneOf:
+            - { $ref: '#/components/schemas/PlaceRating' }
+            - { type: 'null' }
+    MutationRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, version]
+      properties:
+        requestId: &requestId { type: string, minLength: 1, maxLength: 128 }
+        version: *version
+    CreateVisitRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, facilityId, mode, accessPointId, driverDeviceId]
+      properties:
+        requestId: *requestId
+        facilityId: &id { type: string, pattern: '^[1-9][0-9]*$', maxLength: 16 }
+        mode: *mode
+        accessPointId: *id
+        driverDeviceId: { type: string, minLength: 24, maxLength: 128 }
+    UpdateVisitRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 3
+      required: [requestId, version]
+      properties:
+        requestId: *requestId
+        version: *version
+        accessPointId: *id
+        phase: *phase
+        passengerReadiness: *readiness
+        parkingFloor: { type: [string, 'null'], minLength: 1, maxLength: 32 }
+        passengerLocation:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [lat, lng]
+          properties:
+            lat: *lat
+            lng: *lng
+        vehicle:
+          type: object
+          additionalProperties: false
+          required: [lat, lng, etaSec]
+          properties:
+            lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
+            lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
+            etaSec: { type: [integer, 'null'], minimum: 0, maximum: 86400 }
+            navResult: { type: string, enum: [set, failed] }
+    CreateProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, version, accessPointId]
+      properties:
+        requestId: *requestId
+        version: *version
+        accessPointId: *id
+        reason: { type: string, maxLength: 500 }
+    RespondProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, version, accept]
+      properties:
+        requestId: *requestId
+        version: *version
+        accept: { type: boolean }
+    RateVisitRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, version, rating, tags]
+      properties:
+        requestId: *requestId
+        version: *version
+        rating: *rating
+        tags: *tags
+        comment: { type: string, maxLength: 1000 }
+x-websocket:
+  path: /ws/visits/{token}
+  description: |
+    Same token authority and expiry as REST. The first and each subsequent message is a
+    VisitSnapshot JSON object without an envelope, with the subscriber's own role.
+    Clients must additionally poll GET /api/visits/{token} every 5 seconds for reconnect,
+    proposal expiration, or missed-message recovery. Losing connectivity never approves
+    proposals or completes a visit automatically. Invalid/expired tokens cannot upgrade.

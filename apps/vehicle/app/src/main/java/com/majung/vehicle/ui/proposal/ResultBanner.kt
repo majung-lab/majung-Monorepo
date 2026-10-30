@@ -34,14 +34,14 @@ enum class ProposalResult(val bg: Color, val fg: Color) {
 private fun ProposalResult.title(to: String) = when (this) {
     ProposalResult.ACCEPTED -> "가족이 수락했어요 · ${to}로 바뀌었어요"
     ProposalResult.REJECTED -> "가족이 기존 장소 그대로 가재요"
-    ProposalResult.TIMEOUT -> "가족이 10분 동안 답이 없어요"
+    ProposalResult.TIMEOUT -> "제안이 종료되었어요"
     ProposalResult.CANCELLED_BY_ME -> "바꾸자는 제안을 취소했어요"
     ProposalResult.CANCELLED_BY_FAMILY -> "가족이 제안을 취소했어요"
 }
 
 private fun ProposalResult.sub(from: String, to: String) = when (this) {
-    ProposalResult.ACCEPTED -> "${to}로 다시 안내해요"
-    ProposalResult.TIMEOUT -> "제안은 자동 취소됐어요 · $from 그대로예요"
+    ProposalResult.ACCEPTED -> "확정 장소를 가족 화면에도 반영했어요"
+    ProposalResult.TIMEOUT -> "제안이 취소되거나 만료됐어요 · $from 그대로예요"
     ProposalResult.CANCELLED_BY_ME -> "가족에게도 알렸어요 · $from 그대로예요"
     else -> "$from 그대로 안내해요"
 }

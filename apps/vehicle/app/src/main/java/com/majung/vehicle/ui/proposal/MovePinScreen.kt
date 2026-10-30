@@ -38,6 +38,7 @@ import kotlin.math.roundToInt
 import com.majung.vehicle.R
 import com.majung.vehicle.domain.model.LatLng
 import com.majung.vehicle.domain.model.MAP_POINTS
+import com.majung.vehicle.domain.model.MapPoint
 import com.majung.vehicle.domain.model.distanceM
 import com.majung.vehicle.domain.model.mapPoint
 import com.majung.vehicle.domain.model.nearest
@@ -93,13 +94,15 @@ fun MovePinScreen(
     onBack: () -> Unit = {},
     onPropose: (String) -> Unit = {},
     onCancel: () -> Unit = {},
+    points: List<MapPoint> = MAP_POINTS,
+    pendingTarget: String? = null,
 ) {
-    val here = mapPoint(current)
+    val here = points.firstOrNull { it.name == current } ?: points.first()
     var center by remember { mutableStateOf(here.pos) }
-    var sentTo by remember { mutableStateOf<String?>(null) }
+    val sentTo = pendingTarget
     var focus by remember { mutableStateOf<LatLng?>(null) }
     val waiting = sentTo != null
-    val pick = nearest(center)
+    val pick = nearest(center, points)
     val canSend = pick.snapped && pick.point.id != here.id
     val distM = distanceM(here.pos, center).roundToInt()
     // 대기 중 뒤로 = 제안 취소 (제안이 조용히 남지 않게)
@@ -114,7 +117,7 @@ fun MovePinScreen(
             } else {
                 OsmMap(
                     here.pos, Modifier.fillMaxSize(),
-                    pins = MAP_POINTS.filter { it.id != here.id }.map { MapPin(it.pos, R.drawable.map_c10_access_point, 0.5f) } +
+                    pins = points.filter { it.id != here.id }.map { MapPin(it.pos, R.drawable.map_c10_access_point, 0.5f) } +
                         MapPin(here.pos, R.drawable.map_c10_pin_now),
                     locked = waiting || driving,
                     focus = focus,
@@ -149,7 +152,7 @@ fun MovePinScreen(
                 Modifier.padding(top = 14.dp), Ink.text, 30.sp, fontWeight = FontWeight.Bold,
             )
             if (pick.snapped || waiting) {
-                Text("확인된 승하차 지점", Modifier.padding(top = 14.dp), Ink.ok, 16.sp)
+                Text("등록된 예시 지점", Modifier.padding(top = 14.dp), Ink.ok, 16.sp)
             } else {
                 // 반경을 살짝 벗어나도 끌어서 맞추기 어렵다 → 눌러서 그 지점으로
                 Text(
@@ -162,7 +165,7 @@ fun MovePinScreen(
             Spacer(Modifier.weight(1f))
             when {
                 waiting -> {
-                    Text("가족 응답 기다리는 중 · 10분 지나면 그대로예요", color = Ink.sub, fontSize = 16.sp)
+                    Text("가족 응답 기다리는 중 · 응답 전까지 기존 장소 유지", color = Ink.sub, fontSize = 16.sp)
                     SecondaryButton("제안 취소", onCancel, Modifier.padding(top = 10.dp).fillMaxWidth().height(68.dp))
                 }
                 driving -> DisabledButton("정차 후 조정할 수 있어요")
@@ -172,7 +175,7 @@ fun MovePinScreen(
                         .height(68.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Ink.accent)
-                        .clickable { sentTo = pick.point.name; onPropose(pick.point.name) },
+                        .clickable { onPropose(pick.point.name) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("여기로 조정하기", color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)

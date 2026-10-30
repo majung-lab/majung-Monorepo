@@ -39,13 +39,15 @@ data class FamilyStatus(val label: String, val detail: String)
 fun MovingScreen(
     context: String,
     destination: String,
-    etaMin: Int,
+    etaMin: Int?,
     family: FamilyStatus?,
     heading: String = "픽업 장소로 가는 중",
     onArrived: () -> Unit = {},
     onChangePlace: (() -> Unit)? = null,
     changed: Boolean = false,
     banner: (@Composable () -> Unit)? = null,
+    navigationStatus: String = "내비 연동 준비 중",
+    onCancelVisit: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
@@ -66,9 +68,9 @@ fun MovingScreen(
             }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 // TODO: NaviResult 연결 (실패 시 문구 교체)
-                Icon(painterResource(R.drawable.ic_check_green), null, tint = Color.Unspecified)
-                Text("내비 안내 중", Modifier.padding(start = 8.dp), Ink.ok, 18.sp)
-                Text("· 약 ${etaMin}분", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
+                if (navigationStatus == "내비 안내 중") Icon(painterResource(R.drawable.ic_check_green), null, tint = Color.Unspecified)
+                Text(navigationStatus, Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
+                Text(etaMin?.let { "· 약 ${it}분" } ?: "· ETA 정보 없음", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
             }
         }
         Column(Modifier.width(380.dp).padding(top = 54.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -86,6 +88,7 @@ fun MovingScreen(
                 Text("도착했어요", color = Ink.onAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
             onChangePlace?.let { OutlineButton("위치 바꾸기", it, Modifier.fillMaxWidth()) }
+            onCancelVisit?.let { OutlineButton("방문 취소", it, Modifier.fillMaxWidth()) }
         }
     }
     banner?.invoke()

@@ -47,10 +47,11 @@ import com.majung.vehicle.ui.theme.dashedCard
 fun DestinationScreen(
     initialQuery: String = "",
     onBack: () -> Unit = {},
+    places: List<Place> = SAMPLE_PLACES,
     onSelect: (Place) -> Unit = {},
 ) {
     var query by remember { mutableStateOf(initialQuery) }
-    val results = SAMPLE_PLACES.filter { query.isNotBlank() && it.name.contains(query.trim()) }
+    val results = places.filter { query.isBlank() || it.name.contains(query.trim()) }
 
     Column(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
         BackHeader("목적지 입력", onBack)
@@ -94,7 +95,7 @@ private fun PlaceRow(place: Place, onSelect: (Place) -> Unit) {
                 fontWeight = if (place.registered) FontWeight.Medium else FontWeight.Normal,
             )
             Text(
-                if (place.registered) "${place.address} · ${place.distanceKm}km" else "아직 확인 안 된 시설 · 일반 길안내만 가능",
+                if (place.registered) place.address else "아직 확인 안 된 시설 · 일반 길안내만 가능",
                 Modifier.padding(top = 2.dp),
                 Ink.sub, 16.sp,
             )

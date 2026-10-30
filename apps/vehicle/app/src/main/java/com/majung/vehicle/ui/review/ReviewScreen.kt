@@ -59,7 +59,7 @@ fun ReviewScreen(
     context: String,
     pointName: String,
     summary: String,
-    kicker: String = "픽업 장소 평가",
+    kicker: String = "장소 평가",
     onDone: (Rating, List<String>) -> Unit = { _, _ -> },
     onSkip: () -> Unit = {},
 ) {
@@ -106,7 +106,7 @@ fun ReviewScreen(
             Column(Modifier.fillMaxWidth().height(120.dp).selectable(false, RoundedCornerShape(16.dp)).padding(horizontal = 21.dp, vertical = 18.dp)) {
                 Text("이번 방문", color = Ink.sub, fontSize = 14.sp)
                 Text(summary, Modifier.padding(top = 6.dp), Ink.text, 18.sp, fontWeight = FontWeight.Medium)
-                Text("평가는 목적지 기록에 남고, 다음 추천에 반영돼요", Modifier.padding(top = 4.dp), Ink.sub, 14.sp)
+                Text("평가와 선택한 이유를 목적지 기록에 저장해요", Modifier.padding(top = 4.dp), Ink.sub, 14.sp)
             }
             val done = rating
             Box(

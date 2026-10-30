@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.majung.vehicle.R
 import com.majung.vehicle.domain.model.AccessPoint
 import com.majung.vehicle.domain.model.SAMPLE_ACCESS_POINTS
-import com.majung.vehicle.domain.model.SAMPLE_WEATHER
 import com.majung.vehicle.domain.model.VisitMode
 import com.majung.vehicle.ui.theme.BackHeader
 import com.majung.vehicle.ui.theme.Ink
@@ -41,16 +40,16 @@ import com.majung.vehicle.ui.theme.PrimaryButton
 import com.majung.vehicle.ui.theme.Tag
 import com.majung.vehicle.ui.theme.card
 
-// C04 추천 / 선택 — 날씨 기준 추천 지점을 먼저 골라 둔다
+// C04 서버가 제공한 이용 가능한 지점 선택
 @Composable
 fun PlaceScreen(
     placeName: String,
     mode: VisitMode,
     onBack: () -> Unit = {},
+    points: List<AccessPoint> = SAMPLE_ACCESS_POINTS,
     onConfirm: (AccessPoint) -> Unit = {},
 ) {
-    val points = SAMPLE_ACCESS_POINTS
-    var selected by remember { mutableStateOf(points.firstOrNull { it.recommended } ?: points.first()) }
+    var selected by remember(points) { mutableStateOf(points.firstOrNull { it.recommended } ?: points.firstOrNull()) }
     val title = when (mode) {
         VisitMode.PICKUP -> "어디서 태울까요?"
         VisitMode.DROPOFF -> "어디서 내려줄까요?"
@@ -65,14 +64,15 @@ fun PlaceScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(painterResource(R.drawable.ic_rain), null, tint = Color.Unspecified)
-                Text(SAMPLE_WEATHER, Modifier.padding(start = 10.dp), Ink.text, 16.sp)
+                Text("예시 시설 데이터", Modifier.padding(start = 10.dp), Ink.text, 16.sp)
             }
         }
         Row(Modifier.padding(top = 78.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             points.forEach { p -> PointCard(p, p == selected, Modifier.weight(1f)) { selected = p } }
         }
         Spacer(Modifier.weight(1f))
-        PrimaryButton("다음", { onConfirm(selected) }, Modifier.align(Alignment.End).width(316.dp))
+        if (selected != null) PrimaryButton("다음", { selected?.let(onConfirm) }, Modifier.align(Alignment.End).width(316.dp))
+        else Text("이 모드에서 이용 가능한 지점이 없어요", color = Ink.sub)
     }
 }
 

@@ -12,6 +12,7 @@ data class Place(
     val registered: Boolean = true,
     val pickupZoneVerified: Boolean = false,
     val indoorParking: Boolean = false,
+    val id: String = name,
 )
 
 enum class VisitMode { PICKUP, PARK, DROPOFF }
@@ -31,6 +32,7 @@ data class AccessPoint(
     val recommended: Boolean = false,
     /** 지도·가족 화면에 보이는 만날 곳 이름 (Figma: C04 "북문 승하차 구역" → C06 "북문 로비") */
     val meetName: String = name,
+    val id: String = name,
 )
 
 // ponytail: 날씨·시설 API 전까지 Figma 예시.

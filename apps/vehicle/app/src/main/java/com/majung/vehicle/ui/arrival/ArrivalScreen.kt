@@ -133,13 +133,13 @@ fun ParkArrivalScreen(
     onParked: (floor: String?) -> Unit = {},
     onStillLooking: () -> Unit = {},
 ) {
-    var floor by remember { mutableStateOf<String?>("B2") }
+    var floor by remember { mutableStateOf<String?>(null) }
     ArrivalLayout(
         context = context,
         kicker = "${lotName}에 도착했어요",
         question = "어디에 세웠나요?",
         hint = "층을 남겨 두면 목적지 기록에서 다시 볼 수 있어요 (선택)",
-        info = Info("비 와요 · 12°C", floor?.let { "$it → 북문 엘리베이터 2분" } ?: "북문 엘리베이터까지 실내 통로", "실내 통로로 가면 비 안 맞아요", R.drawable.ic_rain_small),
+        info = Info("주차 기록", floor ?: "층 미선택", "선택한 층을 방문 기록에 저장해요"),
         primary = "주차 완료",
         primaryEnabled = true,
         onPrimary = { onParked(floor) },
@@ -162,7 +162,7 @@ fun DropoffArrivalScreen(
         context = context,
         kicker = "${pointName}에 도착했어요",
         question = "가족이 모두 내렸나요?",
-        hint = "오른쪽 뒷문으로 내리면 바로 로비예요",
+        hint = "주변 안전을 확인한 뒤 내려 주세요",
         info = Info("다음", "하차 완료하면 홈으로 가요", "이번 방문은 목적지 기록에 남아요"),
         primary = "하차 완료",
         primaryEnabled = true,
@@ -175,7 +175,7 @@ fun DropoffArrivalScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(painterResource(R.drawable.ic_clock), null, tint = Color.Unspecified)
-            Text("잠깐 정차 구역 · 3분 안에 출발해 주세요", Modifier.padding(start = 8.dp), Ink.accent, 18.sp)
+            Text("현장 정차 안내와 교통 규칙을 확인해 주세요", Modifier.padding(start = 8.dp), Ink.accent, 18.sp)
         }
     }
 }
@@ -187,7 +187,7 @@ fun PickupArrivalScreen(
     pointName: String,
     family: List<String>,
     arrivedAt: String,
-    waitedMin: Int,
+    waitedMin: Int?,
     initiallyBoarded: Set<String> = emptySet(),
     onBoarded: () -> Unit = {},
     onWaiting: () -> Unit = {},
@@ -202,7 +202,7 @@ fun PickupArrivalScreen(
         info = Info(
             "가족",
             if (left == 0) "모두 탔어요" else "${boarded.size}명 탔어요 · ${left}명 오는 중",
-            "도착 $arrivedAt · 기다린 시간 ${waitedMin}분",
+            waitedMin?.let { "도착 $arrivedAt · 기다린 시간 ${it}분" } ?: "서버에 차량 도착 상태를 저장했어요",
         ),
         primary = if (left == 0) "탑승 완료" else "탑승 완료 (${boarded.size}/${family.size})",
         primaryEnabled = left == 0,

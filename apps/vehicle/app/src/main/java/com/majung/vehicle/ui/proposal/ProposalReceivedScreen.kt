@@ -60,13 +60,16 @@ fun ProposalReceivedScreen(
     onAccept: () -> Unit = {},
     onReject: () -> Unit = {},
     onContinue: () -> Unit = {},
+    response: Boolean? = null,
+    fromPosition: LatLng? = null,
+    toPosition: LatLng? = null,
 ) {
-    var accepted by remember { mutableStateOf<Boolean?>(null) }
+    val accepted = response
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
         Box(Modifier.weight(0.64f).fillMaxHeight()) {
-            val from = mapPoint(proposal.from).pos
-            val to = mapPoint(proposal.to).pos
+            val from = fromPosition ?: mapPoint(proposal.from).pos
+            val to = toPosition ?: mapPoint(proposal.to).pos
             if (LocalStaticMap.current) {
                 MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
                 if (accepted != false) {
@@ -112,7 +115,7 @@ fun ProposalReceivedScreen(
                 Ink.accentBody, 17.sp, lineHeight = 24.sp,
             )
             Text(
-                "가족 위치에서 ${proposal.distanceM}m · 10분 안에 답하지 않으면 그대로예요",
+                "두 지점 사이 ${proposal.distanceM}m · 응답 전까지 기존 장소로 안내해요",
                 Modifier.padding(top = 10.dp),
                 Ink.sub, 14.sp,
             )
@@ -121,8 +124,8 @@ fun ProposalReceivedScreen(
                 accepted != null -> PrimaryButton("안내 계속", onContinue, Modifier.fillMaxWidth())
                 driving -> Text("정차하면 수락·거절할 수 있어요 · 그동안 기존 장소로 안내", color = Ink.sub, fontSize = 18.sp)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SecondaryButton("${proposal.from.short} 그대로", { accepted = false; onReject() }, Modifier.weight(1f))
-                    PrimaryButton("${proposal.to.short}으로 바꾸기", { accepted = true; onAccept() }, Modifier.weight(1.4f))
+                    SecondaryButton("${proposal.from.short} 그대로", onReject, Modifier.weight(1f))
+                    PrimaryButton("${proposal.to.short}으로 바꾸기", onAccept, Modifier.weight(1.4f))
                 }
             }
         }

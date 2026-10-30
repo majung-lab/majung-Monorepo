@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { LatLng } from '../../data/dummy';
+import type { LatLng } from '../../data/geo';
 import pinMeet from '../../assets/map/w01/pin-meet.svg';
 import pinCar from '../../assets/map/w01/pin-car.svg';
 import pinMe from '../../assets/map/w01/pin-me.svg';
@@ -30,10 +30,18 @@ export function fitAll(m: L.Map, pts: LatLng[]) {
 
 function icon(m: MapMarker) {
   const [src, size, anchor] = ICONS[m.kind];
-  const label = m.label ? `<span class="pin-label">${m.label}</span>` : '';
+  const content = document.createElement('div');
+  const img = document.createElement('img');
+  img.src = src; img.width = size[0]; img.height = size[1]; img.alt = '';
+  content.append(img);
+  if (m.label) {
+    const label = document.createElement('span');
+    label.className = 'pin-label'; label.textContent = m.label;
+    content.append(label);
+  }
   return L.divIcon({
     className: `pin pin-${m.kind}`,
-    html: `<img src="${src}" width="${size[0]}" height="${size[1]}" alt="">${label}`,
+    html: content,
     iconSize: size,
     iconAnchor: anchor,
   });
@@ -61,7 +69,8 @@ export default function LeafletMap({ center, zoom = 16, height = 470, markers = 
   moveEnd.current = onMoveEnd;
 
   useEffect(() => {
-    const m = L.map(el.current!, { zoomControl: false, attributionControl: true }).setView(center, zoom);
+    // Leaflet's delayed zoom callback can run after a route has removed the map.
+    const m = L.map(el.current!, { zoomControl: false, attributionControl: true, zoomAnimation: false }).setView(center, zoom);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
@@ -89,7 +98,7 @@ export default function LeafletMap({ center, zoom = 16, height = 470, markers = 
         ? { color: '#d9480f', weight: 3, dashArray: '6 6' }
         : { color: '#f5a524', weight: 6, lineCap: 'round' }).addTo(g);
     }
-    for (const m of markers) L.marker(m.pos, { icon: icon(m), interactive: false }).addTo(g);
+    for (const m of markers) L.marker(m.pos, { icon: icon(m), interactive: false, keyboard: false }).addTo(g);
   }, [markers, lines]);
 
   return (
