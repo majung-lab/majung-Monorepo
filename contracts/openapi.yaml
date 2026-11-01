@@ -346,11 +346,22 @@ components:
     CreateProposalRequest:
       type: object
       additionalProperties: false
-      required: [requestId, version, accessPointId]
+      required: [requestId, version]
+      description: Send accessPointId for a registered point or location for a free map pin.
+      oneOf:
+        - required: [accessPointId]
+        - required: [location]
       properties:
         requestId: *requestId
         version: *version
         accessPointId: *id
+        location:
+          type: object
+          additionalProperties: false
+          required: [lat, lng]
+          properties:
+            lat: { type: number, minimum: -90, maximum: 90 }
+            lng: { type: number, minimum: -180, maximum: 180 }
         reason: { type: string, maxLength: 500 }
     RespondProposalRequest:
       type: object

@@ -195,3 +195,26 @@ test('driver can directly change a non-pickup destination while pickup still req
     assert.equal(dropped.json().visit.confirmedAccessPointId,'1');
   }finally{await app.close();db.close();}
 });
+
+test('a free map pin is proposed for one visit, accepted, and stays out of the shared facility list', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'majung-test-'));
+  const db = openDb(join(directory, 'db.sqlite'));
+  const app = await buildApp(db);
+  try {
+    const created = (await app.inject({method:'POST',url:'/api/visits',payload:{requestId:'free-pin-create',facilityId:'1',mode:'PICKUP',accessPointId:'1',driverDeviceId:'free-pin-device-0000000000'}})).json();
+    const location = {lat:37.5421,lng:127.2233};
+    const both = await app.inject({method:'POST',url:`/api/visits/${created.passengerToken}/proposals`,payload:{requestId:'free-pin-both',version:1,accessPointId:'2',location}});
+    assert.equal(both.statusCode,400);
+    const proposed = await app.inject({method:'POST',url:`/api/visits/${created.passengerToken}/proposals`,payload:{requestId:'free-pin-send',version:1,location}});
+    assert.equal(proposed.statusCode,200);
+    const snapshot = proposed.json();
+    const pin = snapshot.facility.accessPoints.find((p:{id:string}) => p.id === snapshot.proposals[0].accessPointId);
+    assert.deepEqual([pin.lat,pin.lng,pin.allowed,pin.name],[location.lat,location.lng,false,'지도에서 고른 위치']);
+    assert.equal(snapshot.visit.confirmedAccessPointId,'1');
+    const accepted = await app.inject({method:'POST',url:`/api/visits/${created.driverToken}/proposals/${snapshot.proposals[0].id}/respond`,payload:{requestId:'free-pin-accept',version:snapshot.visit.version,accept:true}});
+    assert.equal(accepted.statusCode,200);
+    assert.equal(accepted.json().visit.confirmedAccessPointId,pin.id);
+    const shared = (await app.inject({method:'GET',url:'/api/facilities'})).json();
+    assert.equal(shared[0].accessPoints.some((p:{id:string}) => p.id === pin.id),false);
+  } finally { await app.close(); db.close(); rmSync(directory,{recursive:true,force:true}); }
+});

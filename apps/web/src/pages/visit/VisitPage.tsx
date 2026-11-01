@@ -1,17 +1,17 @@
 // W01 방문 카드 · W05 변경 결과 알림
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type L from 'leaflet';
-import LeafletMap, { fitAll, type MapMarker } from '../../features/map/LeafletMap';
+import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
 import { api } from '../../api/client';
 import type { LatLng } from '../../data/geo';
 import check from '../../assets/icons/check.svg';
 import dotMe from '../../assets/icons/dot-me.svg';
 import dotCar from '../../assets/icons/dot-car.svg';
+import pinMeet from '../../assets/map/w01/pin-meet.svg';
 import swap from '../../assets/icons/swap.svg';
 
-type MapView = 'me' | 'car' | 'all';
+type MapView = 'me' | 'car' | 'meet' | 'all';
 const STEPS = ['출발 준비', '이동 중', '도착'];
 const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -25,8 +25,9 @@ export default function VisitPage() {
   const car: LatLng | null = vehicle?.lat != null && vehicle.lng != null ? [vehicle.lat, vehicle.lng] : null;
   const [view, setView] = useState<MapView>('all');
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const map = useRef<L.Map | null>(null);
+  const map = useRef<MapHandle | null>(null);
   const mine = proposals.find((p) => p.proposedBy === 'PASSENGER' && p.status === 'PENDING');
+  const proposed = mine && facility.accessPoints.find((p) => p.id === mine.accessPointId);
   const latest = [...proposals].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((p) => p.proposedBy === 'PASSENGER');
   const result = latest && latest.status !== 'PENDING' && latest.id !== dismissed ? latest : null;
   const changed = proposals.some((p) => p.status === 'ACCEPTED');
@@ -41,18 +42,20 @@ export default function VisitPage() {
     setView(v);
     if (v === 'me' && me) m.setView(me, 17);
     else if (v === 'car' && car) m.setView(car, 16);
-    else fitAll(m, [meetPos, ...(me ? [me] : []), ...(car ? [car] : [])]);
+    else if (v === 'meet') m.setView(meetPos, 17);
+    else m.fit([meetPos, ...(me ? [me] : []), ...(car ? [car] : [])]);
   };
   const markers = useMemo<MapMarker[]>(() => [
     { pos: meetPos, kind: 'meet' },
+    ...(proposed ? [{ pos: pointPosition(proposed), kind: 'proposed' as const, label: '제안' }] : []),
     ...(car ? [{ pos: car, kind: 'car' as const }] : []),
     ...(me ? [{ pos: me, kind: 'me' as const }] : []),
-  ], [meet.lat, meet.lng, vehicle?.lat, vehicle?.lng, me]);
+  ], [meet.lat, meet.lng, proposed?.id, vehicle?.lat, vehicle?.lng, me]);
   const readiness = visit.passengerReadiness;
 
   return (
     <main className="screen">
-      <LeafletMap center={pointPosition(facility)} markers={markers} fitTo={[meetPos, ...(car ? [car] : []), ...(me ? [me] : [])]} mapRef={map}>
+      <KakaoMap center={pointPosition(facility)} markers={markers} fitTo={[meetPos, ...(car ? [car] : []), ...(me ? [me] : [])]} mapRef={map}>
         <span className="chip chip-brand">마중</span>
         <span className="chip chip-time">{hhmm(visit.updatedAt)} 갱신</span>
         <button className="zoom" style={{ top: 64 }} aria-label="지도 확대" onClick={() => map.current?.zoomIn()}>+</button>
@@ -60,6 +63,7 @@ export default function VisitPage() {
         <div className="map-views">
           <button disabled={!me} aria-pressed={view === 'me'} onClick={() => choose('me')}><img src={dotMe} alt="" width={12} height={12} />내 위치</button>
           <button disabled={!car} aria-pressed={view === 'car'} onClick={() => choose('car')}><img src={dotCar} alt="" width={12} height={12} />차 위치</button>
+          <button aria-pressed={view === 'meet'} onClick={() => choose('meet')}><img src={pinMeet} alt="" width={10} height={14} />목적지</button>
           <button aria-pressed={view === 'all'} onClick={() => choose('all')}>전체</button>
         </div>
         {result && <div className={`result ${result.status === 'ACCEPTED' ? 'accepted' : 'rejected'}`} role="status">
@@ -70,7 +74,7 @@ export default function VisitPage() {
           </div>
           <button onClick={() => setDismissed(result.id)}>확인</button>
         </div>}
-      </LeafletMap>
+      </KakaoMap>
       <section className="sheet">
         <p className="data-notice">{facility.name} · 예시 시설·승하차 지점 데이터</p>
         <div className="eta">

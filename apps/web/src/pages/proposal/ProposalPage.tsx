@@ -1,6 +1,6 @@
 // W02 운전자 제안 받기. 만료 여부와 응답 결과는 서버가 결정한다.
 import { useMemo } from 'react';
-import LeafletMap, { type MapMarker } from '../../features/map/LeafletMap';
+import KakaoMap, { type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
 import { api } from '../../api/client';
 import type { LatLng } from '../../data/geo';
@@ -24,7 +24,7 @@ export default function ProposalPage() {
   const leftMin = Math.max(0, Math.ceil((Date.parse(p.expiresAt) - now) / 60_000));
   const answer = (accept: boolean) => void mutate((s) => api.respond(token, s.visit.version, p.id, accept));
   return <main className="screen">
-    <LeafletMap center={center} zoom={17} markers={markers} fitTo={[fromPos, toPos]}><span className="chip chip-brand">마중</span></LeafletMap>
+    <KakaoMap center={center} zoom={17} markers={markers} fitTo={[fromPos, toPos]}><span className="chip chip-brand">마중</span></KakaoMap>
     <section className="sheet sheet-dialog" role="dialog" aria-labelledby="proposal-title">
       <h1 id="proposal-title" className="dialog-title">운전자가 만날 곳을 바꾸자고 해요</h1>
       <div className="change"><span className="change-from">{from.name}</span><img src={arrowRight} alt="→" style={{ margin: '0 4px' }} /><span className="change-to">{to.name}</span></div>

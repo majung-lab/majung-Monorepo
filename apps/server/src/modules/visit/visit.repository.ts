@@ -5,6 +5,8 @@ import { HttpError } from '../../common/errors.ts';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
+const FREE_PIN_NAME = '지도에서 고른 위치';
+const FREE_PIN_NOTE = '확인되지 않은 위치예요. 차를 세우기 어려울 수 있어요';
 const phaseFromDb = { created: 'PREPARING', moving: 'MOVING', arrived: 'ARRIVED', boarded: 'COMPLETED', ended: 'COMPLETED', cancelled: 'CANCELLED' } as const;
 const modeFromDb = { pickup: 'PICKUP', dropoff: 'DROPOFF', parking: 'PARK' } as const;
 const modeToDb = { PICKUP: 'pickup', DROPOFF: 'dropoff', PARK: 'parking' } as const;
@@ -49,6 +51,12 @@ export function createVisitRepository(db: Db) {
     }));
   }
   const facility = (id:number) => facilities().find(f=>f.id===String(id)) ?? error(404,'FACILITY_NOT_FOUND','시설을 찾을 수 없어요');
+  /** Free map pins belong to one visit, so they stay inactive and out of the shared facility list. */
+  function visitFacility(v:VisitRow):Facility {
+    const f=facility(v.facility_id);
+    const pins=all<{id:number;name:string;lat:number;lng:number;type:string}>('SELECT DISTINCT ap.* FROM access_point ap JOIN candidate c ON c.access_point_id=ap.id WHERE c.visit_id=? AND ap.active=0 ORDER BY ap.id',v.id);
+    return {...f,accessPoints:[...f.accessPoints,...pins.map(ap=>({id:String(ap.id),name:ap.name,lat:ap.lat,lng:ap.lng,kind:ap.type==='parking'?'PARKING_ENTRANCE':'PICKUP',allowed:false,description:FREE_PIN_NOTE,waitSpot:null,walkMinutes:null,covered:false} satisfies AccessPoint))]};
+  }
   function toVisit(v:VisitRow):Visit {
     const passenger = one<{status:keyof typeof readinessFromDb}>('SELECT status FROM participant WHERE visit_id=? AND role=\'passenger\'',v.id);
     const candidate=one<Candidate>('SELECT * FROM candidate WHERE id=?',v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id);
@@ -70,7 +78,7 @@ export function createVisitRepository(db: Db) {
         status:(p.status==='pending'&&Date.now()>=Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS?'EXPIRED':p.status.toUpperCase()) as MeetingProposal['status'],
         ...(p.reason_text?{reason:p.reason_text}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
       }));
-    return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:facility(v.facility_id),proposals,
+    return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
       vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:v.last_eta_sec,navResult:v.last_nav_result,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
       passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,rating:rating(v.id)};
   }
@@ -162,10 +170,18 @@ export function createVisitRepository(db: Db) {
     return mutate(token,'propose',input,(a,v)=>{
       requireActive(v);
       if(one('SELECT id FROM proposal WHERE visit_id=? AND status=\'pending\'',v.id)) return error(409,'PROPOSAL_PENDING','진행 중인 제안에 먼저 답해 주세요');
-      if(toVisit(v).confirmedAccessPointId===input.accessPointId) return error(400,'SAME_ACCESS_POINT','현재 장소와 같아요');
-      const candidate=one<Candidate>('SELECT * FROM candidate WHERE visit_id=? AND access_point_id=? AND purpose=? AND excluded_reason IS NULL',v.id,Number(input.accessPointId),v.mode==='parking'?'parking':'meet');
-      if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
-      const result=run("INSERT INTO proposal (visit_id,candidate_id,proposer_id,reason,reason_text,base_version,request_id,created_at) VALUES (?,?,?,'other',?,?,?,?)",v.id,candidate.id,a.id,input.reason??null,v.version,input.requestId,iso());
+      const purpose=v.mode==='parking'?'parking':'meet';
+      let candidateId:number;
+      if(input.location) {
+        const point=run('INSERT INTO access_point (facility_id,type,name,lat,lng,active) VALUES (?,?,?,?,?,0)',v.facility_id,v.mode==='parking'?'parking':'curb',FREE_PIN_NAME,input.location.lat,input.location.lng);
+        candidateId=Number(run('INSERT INTO candidate (visit_id,purpose,access_point_id,excluded_reason) VALUES (?,?,?,?)',v.id,purpose,Number(point.lastInsertRowid),FREE_PIN_NOTE).lastInsertRowid);
+      } else {
+        if(toVisit(v).confirmedAccessPointId===input.accessPointId) return error(400,'SAME_ACCESS_POINT','현재 장소와 같아요');
+        const candidate=one<Candidate>('SELECT * FROM candidate WHERE visit_id=? AND access_point_id=? AND purpose=? AND excluded_reason IS NULL',v.id,Number(input.accessPointId),purpose);
+        if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
+        candidateId=candidate.id;
+      }
+      const result=run("INSERT INTO proposal (visit_id,candidate_id,proposer_id,reason,reason_text,base_version,request_id,created_at) VALUES (?,?,?,'other',?,?,?,?)",v.id,candidateId,a.id,input.reason??null,v.version,input.requestId,iso());
       run('INSERT INTO api_proposal_context VALUES (?,?)',Number(result.lastInsertRowid),Number(toVisit(v).confirmedAccessPointId));
     });
   }
@@ -190,7 +206,7 @@ export function createVisitRepository(db: Db) {
     });
   }
   function history(driverDeviceId:string):HistoryEntry[] {
-    return all<VisitRow>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId).map(v=>({visit:toVisit(v),facility:facility(v.facility_id),rating:rating(v.id)}));
+    return all<VisitRow>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId).map(v=>({visit:toVisit(v),facility:visitFacility(v),rating:rating(v.id)}));
   }
   return {facilities,create,snapshot,update,propose,respond,rate,history,
     subscribe(token:string,listener:()=>void) {
