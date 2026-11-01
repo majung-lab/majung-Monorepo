@@ -24,12 +24,16 @@ export default function VisitPage() {
   const meetPos = pointPosition(meet);
   const car: LatLng | null = vehicle?.lat != null && vehicle.lng != null ? [vehicle.lat, vehicle.lng] : null;
   const [view, setView] = useState<MapView>('all');
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  // 운전자 제안 화면을 다녀와도 닫은 알림이 다시 뜨지 않게 기기에 남긴다
+  const seenKey = `majung:seen-result:${token}`;
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(seenKey));
   const map = useRef<MapHandle | null>(null);
   const mine = proposals.find((p) => p.proposedBy === 'PASSENGER' && p.status === 'PENDING');
   const proposed = mine && facility.accessPoints.find((p) => p.id === mine.accessPointId);
-  const latest = [...proposals].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).find((p) => p.proposedBy === 'PASSENGER');
-  const result = latest && latest.status !== 'PENDING' && latest.id !== dismissed ? latest : null;
+  const latest = proposals[0]; // 서버가 최신순으로 준다
+  const showsResult = latest && latest.id !== dismissed && (latest.proposedBy === 'PASSENGER' ? !['PENDING', 'CANCELLED'].includes(latest.status) : latest.status === 'CANCELLED');
+  const result = showsResult ? latest : null;
+  const dismiss = (id: string) => { localStorage.setItem(seenKey, id); setDismissed(id); };
   const changed = proposals.some((p) => p.status === 'ACCEPTED');
   const arrived = visit.phase === 'ARRIVED';
   const step = arrived ? 2 : visit.phase === 'MOVING' ? 1 : 0;
@@ -69,10 +73,10 @@ export default function VisitPage() {
         {result && <div className={`result ${result.status === 'ACCEPTED' ? 'accepted' : 'rejected'}`} role="status">
           {result.status === 'ACCEPTED' && <img src={check} alt="" />}
           <div className="result-body">
-            <p className="result-title">{result.status === 'ACCEPTED' ? '운전자가 수락했어요' : result.status === 'REJECTED' ? '운전자가 그대로 가자고 했어요' : '변경 제안이 끝났어요'}</p>
+            <p className="result-title">{result.status === 'ACCEPTED' ? '운전자가 수락했어요' : result.status === 'REJECTED' ? '운전자가 그대로 가자고 했어요' : result.status === 'CANCELLED' ? '운전자가 제안을 취소했어요' : '운전자가 답하지 않아 그대로예요'}</p>
             <p className="result-sub">{meet.name}에서 만나요</p>
           </div>
-          <button onClick={() => setDismissed(result.id)}>확인</button>
+          <button onClick={() => dismiss(result.id)}>확인</button>
         </div>}
       </KakaoMap>
       <section className="sheet">

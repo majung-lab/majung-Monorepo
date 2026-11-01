@@ -83,7 +83,7 @@ test('role authority, validation, optimistic concurrency and request replay are 
     await check(409,'POST',p+'/proposals',{requestId:'second',version:2,accessPointId:'4'});
     await check(409,'POST','/api/visits',{...body,accessPointId:'1'});
     const cancelled=await check(200,'DELETE',p+`/proposals/${pending.proposals[0].id}`,{requestId:'cancel',version:2});
-    assert.equal(cancelled.proposals[0].status,'EXPIRED');
+    assert.equal(cancelled.proposals[0].status,'CANCELLED');
     await check(403,'POST',p+'/rating',{requestId:'rating',version:3,rating:4,tags:[]});
     db.prepare("UPDATE visit SET expires_at='2000-01-01T00:00:00Z'").run();
     await check(410,'GET',d);

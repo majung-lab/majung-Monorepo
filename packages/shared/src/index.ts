@@ -2,7 +2,7 @@
 export type Role = 'DRIVER' | 'PASSENGER';
 export type VisitMode = 'PICKUP' | 'PARK' | 'DROPOFF';
 export type VisitPhase = 'PREPARING' | 'MOVING' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
-export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 export type NaviStatus = 'NONE' | 'REQUESTED' | 'GUIDING' | 'FAILED';
 export type PassengerReadiness = 'UNSEEN' | 'SEEN' | 'READY' | 'HEADING_OUT';
 export interface Visit {

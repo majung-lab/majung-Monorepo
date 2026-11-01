@@ -29,6 +29,7 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     var passengerToken by mutableStateOf(prefs.getString("passenger", null)); private set
     private var driverToken = prefs.getString("driver", null)
     private var lastLocation: Location? = null
+    var dismissedResult by mutableStateOf(prefs.getString("dismissedResult", null)); private set
 
     init {
         refresh()
@@ -43,6 +44,10 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     }
 
     fun dismissError() { error = null }
+    fun dismissResult(id: String) {
+        dismissedResult = id
+        prefs.edit().putString("dismissedResult", id).apply()
+    }
     fun refresh() = run {
         facilities = api.get("/api/facilities")
         history = api.get("/api/history?driverDeviceId=$deviceId")
@@ -91,6 +96,9 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
         floor?.let { put("parkingFloor", it) }
     }, onDone)
     fun propose(pointId: String, onDone: () -> Unit = {}) = mutate("POST", "/proposals", { put("accessPointId", pointId) }, onDone)
+    fun proposeLocation(lat: Double, lng: Double, onDone: () -> Unit = {}) = mutate("POST", "/proposals", {
+        putJsonObject("location") { put("lat", lat); put("lng", lng) }
+    }, onDone)
     fun respond(id: String, accept: Boolean) = mutate("POST", "/proposals/$id/respond", { put("accept", accept) })
     fun cancelProposal(id: String, onDone: () -> Unit) = mutate("DELETE", "/proposals/$id", {}, onDone)
     fun rate(rating: Int, tags: List<String>, onDone: () -> Unit) = mutate("POST", "/rating", {

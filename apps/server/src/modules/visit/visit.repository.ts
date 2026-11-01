@@ -15,7 +15,7 @@ const readinessToDb = { UNSEEN: 'none', SEEN: 'preparing', HEADING_OUT: 'moving_
 type VisitRow = {id:string; facility_id:number;mode:keyof typeof modeFromDb;status:keyof typeof phaseFromDb;confirmed_candidate_id:number|null;parking_candidate_id:number|null;driver_device_id:string;version:number;updated_at:string;expires_at:string;last_lat:number|null;last_lng:number|null;last_eta_sec:number|null;last_nav_result:'set'|'failed'|null;last_vehicle_at:string|null};
 type Actor = {id:number;visit_id:string;role:'driver'|'passenger';token:string};
 type Candidate = {id:number;access_point_id:number;purpose:'meet'|'parking'};
-type ProposalRow = {id:number;visit_id:string;candidate_id:number;proposer_id:number;role:'driver'|'passenger';access_point_id:number;from_access_point_id:number;base_version:number;status:'pending'|'accepted'|'rejected'|'expired';reason_text:string|null;created_at:string};
+type ProposalRow = {id:number;visit_id:string;candidate_id:number;proposer_id:number;role:'driver'|'passenger';access_point_id:number;from_access_point_id:number;base_version:number;status:'pending'|'accepted'|'rejected'|'expired';responder_id:number|null;reason_text:string|null;created_at:string};
 const iso = () => new Date().toISOString();
 const normalizeTime = (value:string) => value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
 const error = (status:number,code:string,message:string):never => {throw new HttpError(status,code,message);};
@@ -75,7 +75,7 @@ export function createVisitRepository(db: Db) {
       JOIN participant p ON p.id=pr.proposer_id JOIN candidate c ON c.id=pr.candidate_id
       LEFT JOIN api_proposal_context ctx ON ctx.proposal_id=pr.id WHERE pr.visit_id=? ORDER BY pr.id DESC`,v.id).map(p=>({
         id:String(p.id),visitId:p.visit_id,proposedBy:p.role.toUpperCase() as Role,accessPointId:String(p.access_point_id),fromAccessPointId:String(p.from_access_point_id??toVisit(v).confirmedAccessPointId),baseVersion:p.base_version,
-        status:(p.status==='pending'&&Date.now()>=Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS?'EXPIRED':p.status.toUpperCase()) as MeetingProposal['status'],
+        status:(p.status==='expired'&&p.responder_id===p.proposer_id?'CANCELLED':p.status==='pending'&&Date.now()>=Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS?'EXPIRED':p.status.toUpperCase()) as MeetingProposal['status'],
         ...(p.reason_text?{reason:p.reason_text}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,

@@ -39,6 +39,7 @@ import com.majung.vehicle.R
 import com.majung.vehicle.domain.model.LatLng
 import com.majung.vehicle.domain.model.MAP_POINTS
 import com.majung.vehicle.domain.model.MapPoint
+import com.majung.vehicle.domain.model.SNAP_RADIUS_M
 import com.majung.vehicle.domain.model.distanceM
 import com.majung.vehicle.domain.model.mapPoint
 import com.majung.vehicle.domain.model.nearest
@@ -92,19 +93,22 @@ fun MovePinScreen(
     current: String,
     driving: Boolean = false,
     onBack: () -> Unit = {},
-    onPropose: (String) -> Unit = {},
+    /** 등록 지점이면 그 지점, 아니면 null과 핀 좌표 */
+    onPropose: (MapPoint?, LatLng) -> Unit = { _, _ -> },
     onCancel: () -> Unit = {},
     points: List<MapPoint> = MAP_POINTS,
     pendingTarget: String? = null,
+    currentPosition: LatLng? = null,
+    pendingPosition: LatLng? = null,
 ) {
-    val here = points.firstOrNull { it.name == current } ?: points.first()
+    val here = points.firstOrNull { it.name == current } ?: MapPoint("", current, currentPosition ?: points.first().pos)
     var center by remember { mutableStateOf(here.pos) }
     val sentTo = pendingTarget
     var focus by remember { mutableStateOf<LatLng?>(null) }
     val waiting = sentTo != null
     val pick = nearest(center, points)
-    val canSend = pick.snapped && pick.point.id != here.id
     val distM = distanceM(here.pos, center).roundToInt()
+    val canSend = if (pick.snapped) pick.point.id != here.id else distM > SNAP_RADIUS_M
     // 대기 중 뒤로 = 제안 취소 (제안이 조용히 남지 않게)
     val back = if (waiting) onCancel else onBack
     BackHandler(onBack = back)
@@ -118,9 +122,10 @@ fun MovePinScreen(
                 OsmMap(
                     here.pos, Modifier.fillMaxSize(),
                     pins = points.filter { it.id != here.id }.map { MapPin(it.pos, R.drawable.map_c10_access_point, 0.5f) } +
-                        MapPin(here.pos, R.drawable.map_c10_pin_now),
+                        MapPin(here.pos, R.drawable.map_c10_pin_now) +
+                        listOfNotNull(pendingPosition?.let { MapPin(it, R.drawable.ic_pin_target) }),
                     locked = waiting || driving,
-                    focus = focus,
+                    focus = pendingPosition ?: focus,
                     onMoveEnd = { center = it },
                 )
             }
@@ -130,7 +135,7 @@ fun MovePinScreen(
                 Ink.text, 16.sp,
             )
             // 핀 끝이 지도 한가운데: 태그 30 + 간격 10 + 핀 52 = 92 → 위로 46
-            Column(Modifier.align(Alignment.Center).offset(y = (-46).dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (pendingPosition == null) Column(Modifier.align(Alignment.Center).offset(y = (-46).dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     if (waiting) "응답 기다리는 중" else "여기로 바꿀까요?",
                     Modifier.size(140.dp, 30.dp).clip(RoundedCornerShape(16.dp)).background(PinTag).padding(top = 5.dp),
@@ -151,13 +156,16 @@ fun MovePinScreen(
                 sentTo ?: if (pick.snapped) pick.point.name else "지도에서 고른 위치",
                 Modifier.padding(top = 14.dp), Ink.text, 30.sp, fontWeight = FontWeight.Bold,
             )
-            if (pick.snapped || waiting) {
+            if (waiting) {
+                Text("보낸 제안", Modifier.padding(top = 14.dp), Ink.sub, 16.sp)
+            } else if (pick.snapped) {
                 Text("등록된 예시 지점", Modifier.padding(top = 14.dp), Ink.ok, 16.sp)
             } else {
-                // 반경을 살짝 벗어나도 끌어서 맞추기 어렵다 → 눌러서 그 지점으로
+                Text("확인되지 않은 위치예요. 차를 세우기 어려울 수 있어요", Modifier.padding(top = 14.dp), Ink.sub, 16.sp)
+                // 등록 지점으로 맞추고 싶으면 눌러서 그 지점으로
                 Text(
                     "가장 가까운 지점: ${pick.point.name} (${pick.distanceM.roundToInt()}m) · 눌러서 맞추기",
-                    Modifier.padding(top = 14.dp).clickable(enabled = !driving) { focus = pick.point.pos },
+                    Modifier.padding(top = 8.dp).clickable(enabled = !driving) { focus = pick.point.pos },
                     Ink.accent, 16.sp,
                 )
             }
@@ -175,12 +183,12 @@ fun MovePinScreen(
                         .height(68.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Ink.accent)
-                        .clickable { onPropose(pick.point.name) },
+                        .clickable { onPropose(pick.point.takeIf { pick.snapped }, center) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("여기로 조정하기", color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
-                else -> DisabledButton(if (pick.snapped) "핀을 옮겨 주세요" else "승하차 지점 근처로 옮겨 주세요")
+                else -> DisabledButton("핀을 옮겨 주세요")
             }
         }
     }
