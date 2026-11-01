@@ -107,11 +107,11 @@ class NavigationTest {
         proposalStatus = "PENDING"
         rule.runOnIdle { model.refresh() }; awaitReady()
         rejectNext = true
-        rule.onNodeWithText("북문으로 바꾸기").performClick(); awaitReady()
+        rule.onNodeWithText("목적지 바꾸기").performClick(); awaitReady()
         assertEquals("1", model.snapshot!!.visit.confirmedAccessPointId)
         rule.onNodeWithText("북문로 바뀌었어요").assertDoesNotExist()
         rule.onNodeWithText("닫기").performClick()
-        rule.onNodeWithText("북문으로 바꾸기").performClick(); awaitReady()
+        rule.onNodeWithText("목적지 바꾸기").performClick(); awaitReady()
         assertEquals("2", model.snapshot!!.visit.confirmedAccessPointId)
         rule.onNodeWithText("서문").assertExists()
         rule.onNodeWithText("북문로 바뀌었어요").assertExists()

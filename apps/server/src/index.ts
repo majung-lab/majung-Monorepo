@@ -1,6 +1,8 @@
 import { openDb } from './db/index.ts';
 import { buildApp } from './app.ts';
 
+try { process.loadEnvFile(); } catch { /* .env는 선택 사항 */ }
+
 const db = openDb(process.env.DB_PATH ?? './data/majung.sqlite');
 const app = await buildApp(db);
 app.addHook('onClose',async()=>db.close());

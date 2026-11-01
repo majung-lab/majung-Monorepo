@@ -19,7 +19,8 @@ contracts/          openapi.yaml (차량 DTO 포함 API 계약)
 ```bash
 npm ci
 npm run dev:server
-npm run dev:web
+npm run dev:web        # http://localhost:5173
+npm run dev:web:https  # https://localhost:5174, 휴대폰에서 내 위치까지 볼 때
 ```
 
 - 서버: `http://localhost:4000/health`
@@ -46,6 +47,28 @@ cd apps/vehicle
 ```
 
 위 IP는 예시이므로 해당 PC의 주소로 바꾼다. 휴대폰의 `localhost`는 PC가 아니다. 브라우저 GPS 공유는 HTTPS 또는 브라우저가 허용하는 보안 컨텍스트가 필요하므로, 일반 LAN HTTP에서는 위치 공유가 거절될 수 있다. 위치 권한 없이도 준비 상태·제안·수락은 동작한다.
+
+### 휴대폰에서 내 위치까지 확인 (HTTPS)
+
+`npm run dev:web` 대신 HTTPS 개발 서버를 켠다. 포트는 5174이고 서버(`npm run dev:server`)는 그대로 함께 실행한다.
+
+```bash
+npm run dev:web:https
+```
+
+차량 앱의 QR도 HTTPS 주소로 빌드한다.
+
+```bash
+./gradlew assembleDebug -PwebUrl=https://192.168.0.12:5174
+```
+
+카카오 개발자 콘솔의 JavaScript SDK 도메인에 `https://192.168.0.12:5174`를 추가한다. 개발용 임시 인증서라 처음 열 때 브라우저 경고가 나오며, 경고를 넘긴 뒤 위치 권한을 허용한다.
+
+### 카카오 키
+
+- 웹 지도: `apps/web/.env.example`을 `apps/web/.env`로 복사하고 `VITE_KAKAO_MAP_KEY`에 JavaScript 키를 넣는다. 사용할 주소를 JavaScript SDK 도메인에 모두 등록한다.
+- 주소 변환: `apps/server/.env.example`을 `apps/server/.env`로 복사하고 `KAKAO_REST_KEY`에 REST API 키를 넣는다. 없으면 자유 핀이 "지도에서 고른 위치"로 표시된다.
+- `.env`는 커밋하지 않는다. 값을 바꾸면 해당 서버를 다시 시작한다.
 
 ## DB 원본과 보존
 

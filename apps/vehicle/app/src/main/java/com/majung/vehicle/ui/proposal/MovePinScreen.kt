@@ -105,6 +105,7 @@ fun MovePinScreen(
     var center by remember { mutableStateOf(here.pos) }
     val sentTo = pendingTarget
     var focus by remember { mutableStateOf<LatLng?>(null) }
+    var view by remember(pendingPosition) { mutableStateOf(pendingPosition?.let { listOf(here.pos, it) }) }
     val waiting = sentTo != null
     val pick = nearest(center, points)
     val distM = distanceM(here.pos, center).roundToInt()
@@ -125,9 +126,13 @@ fun MovePinScreen(
                         MapPin(here.pos, R.drawable.map_c10_pin_now) +
                         listOfNotNull(pendingPosition?.let { MapPin(it, R.drawable.ic_pin_target) }),
                     locked = waiting || driving,
-                    focus = pendingPosition ?: focus,
+                    focus = focus,
+                    view = view,
                     onMoveEnd = { center = it },
                 )
+            }
+            pendingPosition?.let {
+                ProposalMapViews(here.pos, it, { points -> view = points }, Modifier.align(Alignment.BottomStart).padding(16.dp))
             }
             Text(
                 if (waiting) "가족에게 보냈어요" else "지도를 움직여 핀을 맞춰 주세요",

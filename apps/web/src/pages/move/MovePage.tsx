@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
+import ProposalViews from '../../features/map/ProposalViews';
 import { distanceM, nearest, SNAP_RADIUS_M, type LatLng } from '../../data/geo';
 import { pointPosition, useVisit } from '../../data/store';
 import { api } from '../../api/client';
@@ -51,7 +52,9 @@ export default function MovePage() {
       {!waiting && <div className="target" aria-hidden><span className="target-tag">여기로 바꿀까요?</span><img src={pinTarget} alt="" /><span className="target-shadow" /></div>}
       <button className="zoom" style={{ top: 64 }} aria-label="지도 확대" onClick={() => map.current?.zoomIn()}>+</button>
       <button className="zoom" style={{ top: 116 }} aria-label="지도 축소" onClick={() => map.current?.zoomOut()}>−</button>
-      <button className="locate" disabled={!me} aria-label="내 위치로" onClick={() => me && map.current?.setView(me, 17)}><img src={locate} alt="" /></button>
+      {waiting && target
+        ? <ProposalViews map={map} from={pointPosition(current)} to={pointPosition(target)} />
+        : <button className="locate" disabled={!me} aria-label="내 위치로" onClick={() => me && map.current?.setView(me, 17)}><img src={locate} alt="" /></button>}
     </KakaoMap>
     <section className="sheet">
       <p className="data-notice">예시 시설·승하차 지점 데이터</p>

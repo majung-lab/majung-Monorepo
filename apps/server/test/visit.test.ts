@@ -218,3 +218,19 @@ test('a free map pin is proposed for one visit, accepted, and stays out of the s
     assert.equal(shared[0].accessPoints.some((p:{id:string}) => p.id === pin.id),false);
   } finally { await app.close(); db.close(); rmSync(directory,{recursive:true,force:true}); }
 });
+
+test('a free map pin uses the looked up address and still works when the lookup fails', async () => {
+  const db=openDb(':memory:');
+  const names=['스타필드 하남 (경기 하남시 미사대로 750)',null];
+  const app=await buildApp(db,async()=>names.shift()??null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'address-create'}})).json();
+    const passenger=`/api/visits/${session.passengerToken}`;
+    const send=async(requestId:string,version:number)=>(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId,version,location:{lat:37.5421,lng:127.2233}}})).json();
+    const pinName=(s:{proposals:{accessPointId:string}[];facility:{accessPoints:{id:string;name:string}[]}})=>s.facility.accessPoints.find(p=>p.id===s.proposals[0].accessPointId)?.name;
+    const first=await send('address-first',1);
+    assert.equal(pinName(first),'스타필드 하남 (경기 하남시 미사대로 750)');
+    const cancelled=(await app.inject({method:'DELETE',url:passenger+`/proposals/${first.proposals[0].id}`,payload:{requestId:'address-cancel',version:first.visit.version}})).json();
+    assert.equal(pinName(await send('address-fallback',cancelled.visit.version)),'지도에서 고른 위치');
+  }finally{await app.close();db.close();}
+});

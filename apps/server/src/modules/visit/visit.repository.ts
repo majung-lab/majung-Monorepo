@@ -166,14 +166,14 @@ export function createVisitRepository(db: Db) {
       }
     });
   }
-  function propose(token:string,input:CreateProposalRequest) {
+  function propose(token:string,input:CreateProposalRequest,pinName:string|null=null) {
     return mutate(token,'propose',input,(a,v)=>{
       requireActive(v);
       if(one('SELECT id FROM proposal WHERE visit_id=? AND status=\'pending\'',v.id)) return error(409,'PROPOSAL_PENDING','진행 중인 제안에 먼저 답해 주세요');
       const purpose=v.mode==='parking'?'parking':'meet';
       let candidateId:number;
       if(input.location) {
-        const point=run('INSERT INTO access_point (facility_id,type,name,lat,lng,active) VALUES (?,?,?,?,?,0)',v.facility_id,v.mode==='parking'?'parking':'curb',FREE_PIN_NAME,input.location.lat,input.location.lng);
+        const point=run('INSERT INTO access_point (facility_id,type,name,lat,lng,active) VALUES (?,?,?,?,?,0)',v.facility_id,v.mode==='parking'?'parking':'curb',pinName??FREE_PIN_NAME,input.location.lat,input.location.lng);
         candidateId=Number(run('INSERT INTO candidate (visit_id,purpose,access_point_id,excluded_reason) VALUES (?,?,?,?)',v.id,purpose,Number(point.lastInsertRowid),FREE_PIN_NOTE).lastInsertRowid);
       } else {
         if(toVisit(v).confirmedAccessPointId===input.accessPointId) return error(400,'SAME_ACCESS_POINT','현재 장소와 같아요');
