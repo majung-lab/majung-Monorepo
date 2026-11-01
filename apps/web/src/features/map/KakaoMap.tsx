@@ -28,6 +28,8 @@ const ICONS: Record<MarkerKind, [string, [number, number], [number, number]]> = 
 // 카카오맵 레벨은 작을수록 가깝다
 const CLOSEST_FIT_LEVEL = 3;
 const SINGLE_POINT_ZOOM = 16;
+const WHEEL_STEP_MS = 250;
+const PINCH_STEP = 1.3;
 const toLevel = (zoom: number) => Math.min(14, Math.max(1, 20 - zoom));
 
 declare global {
@@ -49,6 +51,46 @@ function loadKakao() {
     document.head.append(script);
   });
   return sdk;
+}
+
+/** 카카오 기본 확대는 손가락·휠 위치가 기준이라 끄고, 레벨만 바꿔 가운데를 유지한다 */
+function keepCenterOnZoom(host: HTMLElement, instance: any) {
+  instance.setZoomable(false);
+  let lastWheel = 0;
+  let pinch = 0;
+  const step = (delta: number) => instance.setLevel(instance.getLevel() + delta);
+  const spread = (e: TouchEvent) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  const wheel = (e: WheelEvent) => {
+    e.preventDefault();
+    if (e.timeStamp - lastWheel < WHEEL_STEP_MS) return;
+    lastWheel = e.timeStamp;
+    step(e.deltaY > 0 ? 1 : -1);
+  };
+  const touchStart = (e: TouchEvent) => {
+    if (e.touches.length !== 2) return;
+    pinch = spread(e);
+    e.stopPropagation();
+  };
+  const touchMove = (e: TouchEvent) => {
+    if (e.touches.length !== 2 || !pinch) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ratio = spread(e) / pinch;
+    if (ratio < PINCH_STEP && ratio > 1 / PINCH_STEP) return;
+    step(ratio > 1 ? -1 : 1);
+    pinch = spread(e);
+  };
+  const touchEnd = (e: TouchEvent) => { if (e.touches.length < 2) pinch = 0; };
+  host.addEventListener('wheel', wheel, { passive: false });
+  host.addEventListener('touchstart', touchStart, { capture: true });
+  host.addEventListener('touchmove', touchMove, { capture: true, passive: false });
+  host.addEventListener('touchend', touchEnd, { capture: true });
+  return () => {
+    host.removeEventListener('wheel', wheel);
+    host.removeEventListener('touchstart', touchStart, { capture: true });
+    host.removeEventListener('touchmove', touchMove, { capture: true });
+    host.removeEventListener('touchend', touchEnd, { capture: true });
+  };
 }
 
 function pin(m: MapMarker) {
@@ -76,11 +118,13 @@ interface Props {
   onMoveEnd?: (center: LatLng) => void;
   /** 처음 열 때 이 점들이 다 보이게 맞춘다 */
   fitTo?: LatLng[];
+  /** 손가락·휠 위치가 아니라 지도 가운데를 기준으로 확대한다 (W04 가운데 핀) */
+  zoomAtCenter?: boolean;
   mapRef?: RefObject<MapHandle | null>;
   children?: ReactNode;
 }
 
-export default function KakaoMap({ center, zoom = 16, height = 470, markers = [], lines = [], onMoveEnd, fitTo, mapRef, children }: Props) {
+export default function KakaoMap({ center, zoom = 16, height = 470, markers = [], lines = [], onMoveEnd, fitTo, zoomAtCenter, mapRef, children }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<{ kakao: any; instance: any } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -113,10 +157,12 @@ export default function KakaoMap({ center, zoom = 16, height = 470, markers = []
         moveEnd.current?.([c.getLat(), c.getLng()]);
       };
       kakao.event.addListener(instance, 'idle', idle);
+      const stopCenterZoom = zoomAtCenter ? keepCenterOnZoom(host, instance) : () => {};
       if (mapRef) mapRef.current = handle;
       setMap({ kakao, instance });
       cleanup = () => {
         kakao.event.removeListener(instance, 'idle', idle);
+        stopCenterZoom();
         if (mapRef) mapRef.current = null;
         host.replaceChildren();
       };

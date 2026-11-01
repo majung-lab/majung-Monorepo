@@ -28,6 +28,7 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     var error by mutableStateOf<String?>(null); private set
     var passengerToken by mutableStateOf(prefs.getString("passenger", null)); private set
     private var driverToken = prefs.getString("driver", null)
+    private var lastLocation: Location? = null
 
     init {
         refresh()
@@ -72,6 +73,8 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
             })
             applySnapshot(next)
         }
+        // 정차 중이면 위치가 안 바뀌므로 동승자 링크가 열리기 전에 현재 위치를 먼저 보낸다
+        lastLocation?.let { location -> try { sendLocation(location) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
         onDone()
     }
 
@@ -95,10 +98,18 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     }) { finish(); onDone() }
 
     fun publishLocation(location: Location) {
-        if (snapshot?.visit?.phase !in listOf("MOVING", "ARRIVED") || busy) return
-        mutate("PATCH", "", {
+        lastLocation = location
+        if (snapshot?.visit?.phase !in listOf("PREPARING", "MOVING", "ARRIVED") || busy) return
+        run { sendLocation(location) }
+    }
+
+    private suspend fun sendLocation(location: Location) {
+        val token = driverToken ?: return
+        val version = snapshot?.visit?.version ?: return
+        applySnapshot(api.write("PATCH", "/api/visits/$token", buildJsonObject {
+            put("requestId", UUID.randomUUID().toString()); put("version", version)
             putJsonObject("vehicle") { put("lat", location.latitude); put("lng", location.longitude); put("etaSec", JsonNull) }
-        })
+        }))
     }
 
     fun finish() {

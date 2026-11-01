@@ -46,9 +46,11 @@ export default function MovePage() {
 
   return <main className="screen">
     <header className="topbar"><button className="icon-btn" onClick={toVisit} aria-label="뒤로"><img src={back} alt="" /></button><h1>만날 곳 바꾸기</h1></header>
-    <KakaoMap center={pointPosition(current)} zoom={17} height={430} markers={markers} onMoveEnd={setCenter} fitTo={waiting && target ? [pointPosition(current), pointPosition(target)] : undefined} mapRef={map}>
+    <KakaoMap center={pointPosition(current)} zoom={17} height={430} markers={markers} onMoveEnd={setCenter} zoomAtCenter fitTo={waiting && target ? [pointPosition(current), pointPosition(target)] : undefined} mapRef={map}>
       <p className="hint">{waiting ? '운전자에게 보냈어요' : '지도를 움직여 핀을 원하는 곳에 놓아 주세요'}</p>
       {!waiting && <div className="target" aria-hidden><span className="target-tag">여기로 바꿀까요?</span><img src={pinTarget} alt="" /><span className="target-shadow" /></div>}
+      <button className="zoom" style={{ top: 64 }} aria-label="지도 확대" onClick={() => map.current?.zoomIn()}>+</button>
+      <button className="zoom" style={{ top: 116 }} aria-label="지도 축소" onClick={() => map.current?.zoomOut()}>−</button>
       <button className="locate" disabled={!me} aria-label="내 위치로" onClick={() => me && map.current?.setView(me, 17)}><img src={locate} alt="" /></button>
     </KakaoMap>
     <section className="sheet">
