@@ -52,7 +52,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
     val context = "${facility?.name.orEmpty()} · ${selectedMode.label}"
     val home = { screen = Screen.HOME }
     val ownPending = snapshot?.proposals?.lastOrNull { it.proposedBy == "DRIVER" && it.status == "PENDING" }
-    val ownResult = snapshot?.proposals?.firstOrNull()?.takeIf { it.proposedBy == "DRIVER" && it.status != "PENDING" && it.id != model.dismissedResult }
+    // 내가 직접 취소한 제안은 결과를 알릴 필요가 없다
+    val ownResult = snapshot?.proposals?.firstOrNull()?.takeIf { it.proposedBy == "DRIVER" && it.status !in setOf("PENDING", "CANCELLED") && it.id != model.dismissedResult }
     val incoming = snapshot?.proposals?.lastOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" && it.id != dismissedProposal }
     val shownProposal = snapshot?.proposals?.firstOrNull { it.id == proposalId }
     val mapPoints = facility?.accessPoints.orEmpty().filter { it.allowed && if (selectedMode == VisitMode.PARK) it.kind == "PARKING_ENTRANCE" else it.kind == "PICKUP" }.map { MapPoint(it.id, it.name, LatLng(it.lat, it.lng)) }
@@ -64,11 +65,34 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
         else -> Screen.MOVING
     } }
     fun pick(name: String) {
-        if (visit != null) { resumeVisit(); return }
-        facilityId = model.facilities.firstOrNull { it.name == name }?.id
-        if (facilityId != null) screen = Screen.MODE
+        val choose = {
+            facilityId = model.facilities.firstOrNull { it.name == name }?.id
+            if (facilityId != null) screen = Screen.MODE
+        }
+        // 출발 전(QR 대기) 방문은 버리고 새로 고른다. 이미 출발한 방문은 이어서 한다
+        when {
+            visit?.phase == "PREPARING" -> model.startOver(choose)
+            visit != null -> resumeVisit()
+            else -> choose()
+        }
+    }
+    fun search() = when {
+        visit?.phase == "PREPARING" -> model.startOver { screen = Screen.DESTINATION }
+        visit == null -> screen = Screen.DESTINATION
+        else -> resumeVisit()
     }
     fun finish() { model.finish(); home() }
+    /** 다시 가기: 같은 장소·방식·지점으로 바로 새 방문을 만들고 QR 공유(픽업) 또는 이동 화면으로 간다 */
+    fun revisit(record: VisitRecord) {
+        // 이미 출발한 방문은 그대로 이어서 하고, 출발 전(QR 대기) 방문은 새 방문으로 바꾼다
+        if (visit != null && visit.phase != "PREPARING") { resumeVisit(); return }
+        facilityId = record.facilityId; mode = record.mode
+        val f = model.facilities.firstOrNull { it.id == record.facilityId }
+        val p = f?.accessPoints?.firstOrNull { it.id == record.pointId && it.allowed }
+        if (f == null) { screen = Screen.DESTINATION; return }
+        if (p == null) { screen = Screen.PLACE; return }
+        model.revisit(f.id, record.mode, p.id) { screen = if (record.mode == VisitMode.PICKUP) Screen.INVITE else Screen.MOVING }
+    }
 
     LaunchedEffect(visit?.id, visit?.phase) {
         when (visit?.phase) {
@@ -95,7 +119,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
 
     Box(Modifier.fillMaxSize()) {
         when (screen) {
-            Screen.HOME -> HomeScreen(driving, onSearch = { if (visit == null) screen = Screen.DESTINATION else resumeVisit() }, onRecent = ::pick,
+            Screen.HOME -> HomeScreen(driving, onSearch = ::search, onRecent = ::pick,
                 onHistory = { model.refresh(); screen = Screen.HISTORY }, recent = model.history.map { it.facility.name }.distinct().take(3),
                 activeVisit = visit?.let { "${facility?.name.orEmpty()} · 이어서 하기" }, onResume = ::resumeVisit)
             Screen.DESTINATION -> DestinationScreen(onBack = home, places = model.facilities.map { Place(it.name, it.address, id = it.id) }, onSelect = { facilityId = it.id; screen = Screen.MODE })
@@ -123,7 +147,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onArrived = { if (visit?.phase == "ARRIVED") screen = Screen.ARRIVAL else model.phase("ARRIVED") { screen = Screen.ARRIVAL } },
                 onChangePlace = if (driving || mapPoints.size < 2) null else ({ screen = if (selectedMode == VisitMode.PICKUP) Screen.MOVE_PIN else Screen.PLACE }),
                 onCancelVisit = if (driving) null else ({ model.phase("CANCELLED") { finish() } }),
-                navigationStatus = when (snapshot?.vehicle?.navResult) { "set" -> "내비 안내 중"; "failed" -> "내비 안내 실패"; else -> "내비 SDK 미연결 · 예시 시설" },
+                navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; else -> "내비 연결 전" },
+                onShowNavi = model::showNavi,
+                onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || (model.naviStatus == null && snapshot?.vehicle?.navResult == "failed")) model::retryNavi else null,
                 banner = ownResult?.let { proposal -> {
                     val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; "CANCELLED" -> ProposalResult.CANCELLED_BY_ME; else -> ProposalResult.TIMEOUT }
                     ResultBanner(result, facility?.accessPoints?.firstOrNull { it.id == proposal.fromAccessPointId }?.name.orEmpty(),
@@ -149,8 +175,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 val p = entry.facility.accessPoints.firstOrNull { it.id == entry.visit.confirmedAccessPointId }
                 VisitRecord(entry.facility.name, formatTime(entry.visit.completedAt ?: entry.visit.updatedAt), VisitMode.valueOf(entry.visit.mode),
                     "${p?.name.orEmpty()} · ${entry.visit.parkingFloor.orEmpty()} · ${phaseLabel(entry.visit.phase)}",
-                    entry.rating?.let { "평가 ${it.rating}/5 · ${it.tags.joinToString()}" } ?: "평가 없음")
-            }, onBack = home) { pick(it.place) }
+                    entry.rating?.let { "평가 ${it.rating}/5 · ${it.tags.joinToString()}" } ?: "평가 없음",
+                    facilityId = entry.facility.id, pointId = entry.visit.confirmedAccessPointId)
+            }, onBack = home, onRevisit = ::revisit)
         }
         shownProposal?.let { proposal ->
             val from = facility?.accessPoints?.firstOrNull { it.id == proposal.fromAccessPointId }

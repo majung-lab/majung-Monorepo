@@ -66,11 +66,11 @@ fun InviteScreen(
                     Text("픽업 장소", color = Ink.sub, fontSize = 16.sp)
                     Text(pickupLabel, Modifier.padding(start = 10.dp), Ink.text, 20.sp, fontWeight = FontWeight.Medium)
                 }
-                Text(link, Modifier.padding(top = 8.dp), Ink.sub, 14.sp)
-                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    PrimaryButton("픽업 장소로 출발", onDepart, Modifier.width(296.dp))
-                    SecondaryButton("나중에 알리기", onLater, Modifier.width(166.dp))
-                    onCancelVisit?.let { SecondaryButton("방문 취소", it, Modifier.width(144.dp)) }
+                // 좁은 화면에서도 글자가 세로로 쌓이지 않게: 출발은 한 줄 전체, 나머지는 아래 줄에 나눠 둔다
+                PrimaryButton("픽업 장소로 출발", onDepart, Modifier.padding(top = 18.dp).fillMaxWidth())
+                Row(Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SecondaryButton("나중에 알리기", onLater, Modifier.weight(1f))
+                    onCancelVisit?.let { SecondaryButton("방문 취소", it, Modifier.weight(1f)) }
                 }
             }
         }

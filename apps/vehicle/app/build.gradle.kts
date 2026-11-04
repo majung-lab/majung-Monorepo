@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.zxing.core)
     implementation(libs.osmdroid)
+    implementation(libs.pleos.navihelper)
     testImplementation(libs.junit)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)

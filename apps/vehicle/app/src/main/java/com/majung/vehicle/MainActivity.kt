@@ -12,8 +12,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import com.majung.vehicle.core.notice.OverlayBanner
+import com.majung.vehicle.core.notice.VisitNoticeService
 import com.majung.vehicle.core.uxrestriction.UxRestrictionWatcher
 import com.majung.vehicle.ui.MajungApp
+import com.majung.vehicle.ui.theme.ScaleToPanel
 
 class MainActivity : ComponentActivity() {
     private lateinit var uxRestriction: UxRestrictionWatcher
@@ -26,10 +29,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         uxRestriction = UxRestrictionWatcher(this)
         model = ViewModelProvider(this)[VehicleViewModel::class.java]
-        requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.POST_NOTIFICATIONS))
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                MajungApp(uxRestriction, model)
+                ScaleToPanel { MajungApp(uxRestriction, model) }
             }
         }
     }
@@ -44,6 +47,18 @@ class MainActivity : ComponentActivity() {
                 locations?.requestLocationUpdates(provider, 15_000L, 0f, locationListener)
             }
         } catch (_: SecurityException) { }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        VisitNoticeService.onAppShown(this)
+        OverlayBanner.setAppVisible(this, true)
+    }
+
+    override fun onStop() {
+        VisitNoticeService.appVisible = false
+        OverlayBanner.setAppVisible(this, false)
+        super.onStop()
     }
 
     override fun onDestroy() {

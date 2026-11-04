@@ -1,6 +1,8 @@
 package com.majung.vehicle.ui.arrival
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -64,9 +67,10 @@ private fun ArrivalLayout(
             Text(kicker, color = Ink.sub, fontSize = 18.sp)
             Text(question, Modifier.padding(top = 10.dp), Ink.text, 44.sp, fontWeight = FontWeight.Bold, lineHeight = 52.sp)
             Text(hint, Modifier.padding(top = 8.dp), Ink.sub, 18.sp)
-            Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), content = choices)
+            // 층이 많거나 화면이 좁아도 옆으로 밀어서 고를 수 있게
+            Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), content = choices)
         }
-        Column(Modifier.width(380.dp).padding(top = 92.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.width(300.dp).padding(top = 92.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.fillMaxWidth().height(124.dp).card(Ink.surface, 16).padding(horizontal = 21.dp, vertical = 18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     info.icon?.let {
@@ -114,16 +118,17 @@ private fun Choice(
     val shape = RoundedCornerShape(14.dp)
     val box = if (selected) Modifier.clip(shape).background(selectedBg).border(2.dp, selectedLine, shape) else Modifier.card(Ink.surface, 14)
     Row(
-        box.width(width.dp).height(60.dp).clickable(onClick = onClick).padding(horizontal = 18.dp),
+        // 글자가 길어도 줄바꿈되지 않게 최소 폭만 정하고 내용만큼 늘어난다
+        box.widthIn(min = width.dp).height(60.dp).clickable(onClick = onClick).padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         icon?.let { Icon(painterResource(it), null, Modifier.padding(end = 10.dp), tint = Color.Unspecified) }
-        Text(text, color = Ink.text, fontSize = 20.sp)
+        Text(text, color = Ink.text, fontSize = 20.sp, maxLines = 1, softWrap = false)
     }
 }
 
 // ponytail: 층 목록·안내 문구는 시설 데이터 붙기 전 Figma 값.
-private val FLOORS = listOf("B1", "B2", "B3", "B4")
+private val FLOORS = listOf("B1", "B2", "B3", "B4", "B5", "B6", "1F", "2F", "3F")
 
 /** C07-1 주차 (그냥가기) */
 @Composable

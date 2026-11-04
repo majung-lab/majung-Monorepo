@@ -91,7 +91,8 @@ fun OsmMap(
             if (view != null && shownView[0] !== view) {
                 shownView[0] = view
                 map.post {
-                    if (view.size == 1) { map.controller.setZoom(18.0); map.controller.animateTo(view[0].geo()) }
+                    // 한 점은 멀리 있어도 확실히 가도록 애니메이션 없이 바로 옮긴다
+                    if (view.size == 1) { map.controller.setZoom(18.0); map.controller.setCenter(view[0].geo()) }
                     else map.zoomToBoundingBox(BoundingBox.fromGeoPoints(view.map { it.geo() }), true, 140)
                 }
             }

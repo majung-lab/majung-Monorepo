@@ -6,17 +6,27 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.majung.vehicle.core.notice.AndroidVisitNotifier
+import com.majung.vehicle.core.notice.VisitNotifier
 import com.majung.vehicle.data.remote.ApiException
 import com.majung.vehicle.data.remote.VisitApi
 import com.majung.vehicle.data.remote.dto.*
 import com.majung.vehicle.domain.model.VisitMode
+import com.majung.vehicle.pleos.navi.NaviClient
+import com.majung.vehicle.pleos.navi.NaviResult
+import com.majung.vehicle.pleos.navi.PleosNaviClient
 import java.util.UUID
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 
-class VehicleViewModel @JvmOverloads constructor(application: Application, private val api: VisitApi = VisitApi()) : AndroidViewModel(application) {
+class VehicleViewModel @JvmOverloads constructor(
+    application: Application,
+    private val api: VisitApi = VisitApi(),
+    private val navi: NaviClient = PleosNaviClient(application),
+    private val notice: VisitNotifier = AndroidVisitNotifier(application),
+) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("visit", 0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val lock = Mutex()
@@ -30,8 +40,11 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     private var driverToken = prefs.getString("driver", null)
     private var lastLocation: Location? = null
     var dismissedResult by mutableStateOf(prefs.getString("dismissedResult", null)); private set
+    /** 이번 실행에서 내비에 넣은 결과. null이면 서버에 남은 마지막 결과를 쓴다 */
+    var naviStatus by mutableStateOf<NaviStatus?>(null); private set
 
     init {
+        navi.watchArrival(::onNaviArrived)
         refresh()
         scope.launch {
             while (isActive) {
@@ -50,7 +63,7 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     }
     fun refresh() = run {
         facilities = api.get("/api/facilities")
-        history = api.get("/api/history?driverDeviceId=$deviceId")
+        history = api.get<List<HistoryEntry>>("/api/history?driverDeviceId=$deviceId").filter { it.visit.phase == "COMPLETED" }
         if (driverToken == null) prefs.getString("pendingBody", null)?.let { recoverSession(Json.parseToJsonElement(it)) }
         refreshVisit()
     }
@@ -62,10 +75,130 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
 
     private fun applySnapshot(value: VisitSnapshot) {
         val old = snapshot
-        if (old == null || old.visit.id != value.visit.id || value.visit.version >= old.visit.version) snapshot = value
+        if (old == null || old.visit.id != value.visit.id || value.visit.version >= old.visit.version) {
+            snapshot = value
+            requestNaviIfNeeded(value)
+            updateNotice(value)
+        }
     }
 
-    fun create(facilityId: String, mode: VisitMode, pointId: String, onDone: () -> Unit) = run {
+    /** 내비가 앞에 있어도 알림 한 번으로 마중에 돌아오게 한다 */
+    private fun updateNotice(value: VisitSnapshot) {
+        val visit = value.visit
+        val point = value.facility.accessPoints.firstOrNull { it.id == visit.confirmedAccessPointId }?.name.orEmpty()
+        val title = "마중 · $point"
+        when (visit.phase) {
+            "PREPARING" -> notice.show(title, "출발 준비 중 · 눌러서 마중 열기")
+            "MOVING" -> notice.show(title, "가는 중 · 눌러서 마중 열기")
+            "ARRIVED" -> notice.show(title, "도착했어요 · 눌러서 마중 열기")
+            else -> { notice.stop(); return }
+        }
+        value.proposals.firstOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" }?.let { p ->
+            val to = value.facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.name ?: "지도에서 고른 위치"
+            notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", "$to · 눌러서 확인")
+        }
+        if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", "$point · 눌러서 마중 열기")
+    }
+
+    /**
+     * 이동 중인 방문의 확정 장소가 정해지거나 바뀌면 내장 내비 목적지로 넣는다.
+     * 같은 방문·장소는 한 번만 보내서 앱을 다시 켜도 지난 명령을 자동으로 다시 실행하지 않는다.
+     */
+    private fun requestNaviIfNeeded(value: VisitSnapshot) {
+        val visit = value.visit
+        if (visit.phase != "MOVING") return
+        val point = value.facility.accessPoints.firstOrNull { it.id == visit.confirmedAccessPointId } ?: return
+        val key = "${visit.id}:${point.id}"
+        if (prefs.getString("naviTarget", null) == key) return
+        prefs.edit().putString("naviTarget", key).apply()
+        naviStatus = NaviStatus.REQUESTING
+        navi.requestRoute(point.name, point.lat, point.lng) { result ->
+            if (prefs.getString("naviTarget", null) != key) return@requestRoute
+            naviStatus = if (result is NaviResult.Guiding) NaviStatus.GUIDING else NaviStatus.FAILED
+            reportNavi(result is NaviResult.Guiding)
+        }
+    }
+
+    fun showNavi() = navi.showNavi()
+
+    /**
+     * 내비가 도착을 알리면 "도착했어요"를 대신 누르고 마중 화면을 앞으로 띄운다.
+     * 운전자가 내비에서 다른 곳으로 간 경우는 무시한다 (도착지 이름이 우리 장소이거나 차가 300m 안일 때만).
+     */
+    private fun onNaviArrived(name: String) {
+        val value = snapshot ?: return
+        if (value.visit.phase != "MOVING") return
+        val point = value.facility.accessPoints.firstOrNull { it.id == value.visit.confirmedAccessPointId } ?: return
+        val near = lastLocation?.let { here ->
+            val d = FloatArray(1)
+            Location.distanceBetween(here.latitude, here.longitude, point.lat, point.lng, d)
+            d[0] < ARRIVAL_RADIUS_M
+        } ?: false
+        if (name != point.name && !near) return
+        phase("ARRIVED") { notice.bringToFront("마중 · ${point.name}", "도착했어요 · 가족에게 알렸어요") }
+    }
+
+    fun retryNavi() {
+        prefs.edit().remove("naviTarget").apply()
+        snapshot?.let(::requestNaviIfNeeded)
+    }
+
+    private fun reportNavi(guiding: Boolean) {
+        scope.launch {
+            lock.withLock {
+                // 위치 전송과 버전이 엇갈리면 최신 상태를 받아 한 번 더 보낸다
+                for (attempt in 0..1) {
+                    val token = driverToken ?: return@withLock
+                    val version = snapshot?.visit?.version ?: return@withLock
+                    try {
+                        applySnapshot(api.write("PATCH", "/api/visits/$token", buildJsonObject {
+                            put("requestId", UUID.randomUUID().toString()); put("version", version)
+                            putJsonObject("vehicle") {
+                                put("lat", lastLocation?.latitude); put("lng", lastLocation?.longitude)
+                                put("etaSec", JsonNull); put("navResult", if (guiding) "set" else "failed")
+                            }
+                        }))
+                        return@withLock
+                    } catch (e: CancellationException) { throw e
+                    } catch (e: ApiException) {
+                        if (e.status != 409 || attempt == 1) { handle(e); return@withLock }
+                        refreshVisit()
+                    } catch (e: Exception) { handle(e); return@withLock }
+                }
+            }
+        }
+    }
+
+    fun create(facilityId: String, mode: VisitMode, pointId: String, onDone: () -> Unit) = run { createVisit(facilityId, mode, pointId, onDone) }
+
+    /**
+     * 다시 가기: 아직 출발 전(QR 대기)인 방문이 있으면 취소하고 새로 만든다.
+     * 이미 출발한 방문은 건드리지 않는다 (화면에서 그 방문으로 돌아간다).
+     */
+    fun revisit(facilityId: String, mode: VisitMode, pointId: String, onDone: () -> Unit) = run {
+        discardPreparingVisit()
+        createVisit(facilityId, mode, pointId, onDone)
+    }
+
+    /** 처음부터 다시 고르기: 출발 전(QR 대기) 방문을 정리하고 끝나면 onDone */
+    fun startOver(onDone: () -> Unit) = run {
+        discardPreparingVisit()
+        onDone()
+    }
+
+    private suspend fun discardPreparingVisit() {
+        val current = snapshot ?: return
+        val token = driverToken ?: return
+        if (current.visit.phase != "PREPARING") return
+        api.write<VisitSnapshot>("PATCH", "/api/visits/$token", buildJsonObject {
+            put("requestId", UUID.randomUUID().toString()); put("version", current.visit.version); put("phase", "CANCELLED")
+        })
+        driverToken = null; passengerToken = null; snapshot = null
+        prefs.edit().remove("driver").remove("passenger").commit()
+        notice.stop()
+    }
+
+    private suspend fun createVisit(facilityId: String, mode: VisitMode, pointId: String, onDone: () -> Unit) {
         check(driverToken == null) { "먼저 진행 중인 방문을 종료해 주세요" }
         val body = prefs.getString("pendingBody", null)?.let(Json::parseToJsonElement) ?: buildJsonObject {
             put("requestId", UUID.randomUUID().toString()); put("facilityId", facilityId); put("mode", mode.name); put("accessPointId", pointId); put("driverDeviceId", deviceId)
@@ -121,9 +254,14 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
     }
 
     fun finish() {
-        snapshot?.let { completed -> history = listOf(HistoryEntry(completed.visit, completed.facility, completed.rating)) + history.filter { it.visit.id != completed.visit.id } }
+        // 목적지 기록에는 완료한 방문만 남긴다
+        snapshot?.let { done ->
+            val others = history.filter { it.visit.id != done.visit.id }
+            history = if (done.visit.phase != "COMPLETED") others else listOf(HistoryEntry(done.visit, done.facility, done.rating)) + others
+        }
         driverToken = null; passengerToken = null; snapshot = null
         prefs.edit().remove("driver").remove("passenger").commit()
+        notice.stop()
     }
 
     private fun mutate(method: String, suffix: String, fields: JsonObjectBuilder.() -> Unit, onDone: () -> Unit = {}) = run {
@@ -152,6 +290,7 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
         } else if (e is ApiException && e.status in listOf(404, 410) && driverToken != null) {
             driverToken = null; passengerToken = null; snapshot = null
             prefs.edit().remove("driver").remove("passenger").commit()
+            notice.stop()
             error = "방문 링크가 만료되었거나 없어졌어요. 새 방문을 시작해 주세요."
         } else if (e is ApiException && e.status in listOf(400, 403)) {
             error = "이 작업을 할 수 없어요. 장소와 방문 상태를 확인해 주세요."
@@ -160,5 +299,13 @@ class VehicleViewModel @JvmOverloads constructor(application: Application, priva
         }
     }
 
-    override fun onCleared() { scope.cancel() }
+    override fun onCleared() { navi.release(); scope.cancel() }
+}
+
+private const val ARRIVAL_RADIUS_M = 300f
+
+enum class NaviStatus(val label: String) {
+    REQUESTING("내비에 목적지 넣는 중"),
+    GUIDING("내비 안내 중"),
+    FAILED("내비에 넣지 못했어요 · 다시 시도"),
 }

@@ -15,6 +15,8 @@ import com.majung.vehicle.ui.MajungApp
 import com.majung.vehicle.ui.VehicleViewModel
 import com.majung.vehicle.ui.theme.LocalStaticMap
 import com.majung.vehicle.data.remote.TestHttpServer
+import com.majung.vehicle.pleos.navi.NaviClient
+import com.majung.vehicle.pleos.navi.NaviResult
 import kotlinx.serialization.json.*
 import org.junit.*
 import org.junit.Assert.*
@@ -28,6 +30,8 @@ class NavigationTest {
     @get:Rule val rule = createComposeRule()
     private val modelStores = mutableListOf<ViewModelStore>()
     private lateinit var server: TestHttpServer
+    /** 내비 결과를 보내지 않아 서버 요청 순서를 바꾸지 않는다 */
+    private val navi = object : NaviClient { override fun requestRoute(name: String, lat: Double, lng: Double, onResult: (NaviResult) -> Unit) {} }
     private lateinit var model: VehicleViewModel
     private lateinit var application: Application
     @Volatile private var phase = "PREPARING"
@@ -73,7 +77,7 @@ class NavigationTest {
         rule.setContent { CompositionLocalProvider(LocalStaticMap provides true) { MajungApp(UxRestrictionWatcher(application), model) } }
         awaitReady()
     }
-    private fun newModel() = VehicleViewModel(application, VisitApi("http://127.0.0.1:${server.port}")).also { model ->
+    private fun newModel() = VehicleViewModel(application, VisitApi("http://127.0.0.1:${server.port}"), navi).also { model ->
         modelStores.add(ViewModelStore().also { it.put("model", model) })
     }
     @After fun stop() { modelStores.forEach { it.clear() }; server.close() }
