@@ -234,3 +234,19 @@ test('a free map pin uses the looked up address and still works when the lookup 
     assert.equal(pinName(await send('address-fallback',cancelled.visit.version)),'지도에서 고른 위치');
   }finally{await app.close();db.close();}
 });
+
+test('the navigation result survives location updates and is cleared when the meeting point changes', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'nav-create'}})).json();
+    const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+    const patch=async(requestId:string,version:number,payload:object)=>(await app.inject({method:'PATCH',url:driver,payload:{requestId,version,...payload}})).json();
+    let s=await patch('nav-move',1,{phase:'MOVING'});
+    s=await patch('nav-set',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:null,navResult:'set'}});
+    s=await patch('nav-location',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:null}});
+    assert.equal(s.vehicle.navResult,'set');
+    const proposed=(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId:'nav-propose',version:s.visit.version,accessPointId:'1'}})).json();
+    const accepted=(await app.inject({method:'POST',url:driver+`/proposals/${proposed.proposals[0].id}/respond`,payload:{requestId:'nav-accept',version:proposed.visit.version,accept:true}})).json();
+    assert.equal(accepted.vehicle.navResult,null);
+  }finally{await app.close();db.close();}
+});

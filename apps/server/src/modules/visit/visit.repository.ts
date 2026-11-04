@@ -142,7 +142,8 @@ export function createVisitRepository(db: Db) {
         if(v.mode==='pickup') return error(403,'MUTUAL_CONSENT_REQUIRED','픽업 장소는 상대방이 제안을 수락해야 바뀌어요');
         const candidate=one<Candidate>('SELECT * FROM candidate WHERE visit_id=? AND access_point_id=? AND purpose=? AND excluded_reason IS NULL',v.id,Number(input.accessPointId),v.mode==='parking'?'parking':'meet');
         if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
-        run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=? WHERE id=? AND version=?`,candidate.id,v.id,v.version);
+        // 장소가 바뀌면 이전 장소의 내비 결과는 더 이상 맞지 않는다
+        run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,candidate.id,v.id,v.version);
       }
       if(input.phase!==undefined) {
         const current=phaseFromDb[v.status];
@@ -162,7 +163,7 @@ export function createVisitRepository(db: Db) {
         const pos=input.vehicle;
         if((pos.lat===null)!==(pos.lng===null)) return error(400,'INVALID_POSITION','위도와 경도를 함께 보내 주세요');
         run('INSERT INTO vehicle_update (visit_id,lat,lng,eta_sec,nav_result,nav_target_access_point_id) VALUES (?,?,?,?,?,?)',v.id,pos.lat,pos.lng,pos.etaSec,pos.navResult??null,Number(toVisit(v).confirmedAccessPointId));
-        run('UPDATE visit SET last_lat=?,last_lng=?,last_eta_sec=?,last_nav_result=?,last_vehicle_at=? WHERE id=? AND version=?',pos.lat,pos.lng,pos.etaSec,pos.navResult??null,iso(),v.id,v.version);
+        run('UPDATE visit SET last_lat=?,last_lng=?,last_eta_sec=?,last_nav_result=?,last_vehicle_at=? WHERE id=? AND version=?',pos.lat,pos.lng,pos.etaSec,pos.navResult??v.last_nav_result,iso(),v.id,v.version);
       }
     });
   }
@@ -194,7 +195,7 @@ export function createVisitRepository(db: Db) {
       if(p.status!=='pending') return error(409,'PROPOSAL_CLOSED','이미 답했거나 만료된 제안이에요');
       const accept='accept' in input&&input.accept;
       run('UPDATE proposal SET status=?,responder_id=?,responded_via=\'touch\',responded_at=? WHERE id=?',cancel?'expired':accept?'accepted':'rejected',a.id,iso(),p.id);
-      if(accept) run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=? WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
+      if(accept) run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
     });
   }
   function rate(token:string,input:RateVisitRequest) {
