@@ -39,7 +39,9 @@ class MainActivity : ComponentActivity() {
         locations = getSystemService(LocationManager::class.java)
         try {
             locations?.getProviders(true)?.filter { it == LocationManager.GPS_PROVIDER || it == LocationManager.NETWORK_PROVIDER }?.forEach { provider ->
-                locations?.requestLocationUpdates(provider, 15_000L, 10f, locationListener)
+                locations?.getLastKnownLocation(provider)?.let(model::publishLocation)
+                // 정차 중에도 갱신되도록 이동 거리 조건을 두지 않는다
+                locations?.requestLocationUpdates(provider, 15_000L, 0f, locationListener)
             }
         } catch (_: SecurityException) { }
     }

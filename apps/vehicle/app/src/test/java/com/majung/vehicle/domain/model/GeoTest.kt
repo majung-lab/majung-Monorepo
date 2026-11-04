@@ -12,7 +12,7 @@ class GeoTest {
     @Test
     fun nearestSnapsOnlyInsideRadius() {
         val west = mapPoint("서문 로비").pos
-        val near = nearest(LatLng(west.lat + 0.0002, west.lng))
+        val near = nearest(LatLng(west.lat + 0.0001, west.lng))
         assertEquals("west", near.point.id)
         assertTrue(near.snapped)
         assertFalse(nearest(LatLng(west.lat, west.lng - 0.002)).snapped)

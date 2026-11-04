@@ -111,7 +111,7 @@ paths:
       - { $ref: '#/components/parameters/ProposalId' }
     delete:
       operationId: cancelProposal
-      description: The proposer alone may cancel; canonical proposal status becomes EXPIRED.
+      description: The proposer alone may cancel; the proposal is reported as CANCELLED.
       requestBody:
         required: true
         content:
@@ -240,7 +240,7 @@ components:
         accessPointId: { type: string }
         fromAccessPointId: { type: string }
         baseVersion: *version
-        status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, EXPIRED] }
+        status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, EXPIRED, CANCELLED] }
         reason: { type: string }
         createdAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
@@ -346,11 +346,22 @@ components:
     CreateProposalRequest:
       type: object
       additionalProperties: false
-      required: [requestId, version, accessPointId]
+      required: [requestId, version]
+      description: Send accessPointId for a registered point or location for a free map pin.
+      oneOf:
+        - required: [accessPointId]
+        - required: [location]
       properties:
         requestId: *requestId
         version: *version
         accessPointId: *id
+        location:
+          type: object
+          additionalProperties: false
+          required: [lat, lng]
+          properties:
+            lat: { type: number, minimum: -90, maximum: 90 }
+            lng: { type: number, minimum: -180, maximum: 180 }
         reason: { type: string, maxLength: 500 }
     RespondProposalRequest:
       type: object

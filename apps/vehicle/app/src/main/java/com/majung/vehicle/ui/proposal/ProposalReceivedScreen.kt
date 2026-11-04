@@ -50,7 +50,6 @@ data class FamilyProposal(
 )
 
 /** "북문 로비" → "북문" (버튼 문구용) */
-private val String.short get() = substringBefore(' ')
 
 // C11 가족 제안 받기 — 화면동작정의 기준 (Figma 43:1748 미대조)
 @Composable
@@ -70,6 +69,7 @@ fun ProposalReceivedScreen(
         Box(Modifier.weight(0.64f).fillMaxHeight()) {
             val from = fromPosition ?: mapPoint(proposal.from).pos
             val to = toPosition ?: mapPoint(proposal.to).pos
+            var view by remember { mutableStateOf<List<LatLng>?>(listOf(from, to)) }
             if (LocalStaticMap.current) {
                 MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
                 if (accepted != false) {
@@ -91,7 +91,9 @@ fun ProposalReceivedScreen(
                         if (accepted == null) MapPin(to, R.drawable.ic_pin_target) else null,
                     ),
                     dashed = if (accepted == null) listOf(from, to) else null,
+                    view = view,
                 )
+                if (accepted == null) ProposalMapViews(from, to, { view = it }, Modifier.align(Alignment.BottomStart).padding(16.dp))
             }
         }
         Column(Modifier.weight(0.36f).padding(28.dp)) {
@@ -124,8 +126,8 @@ fun ProposalReceivedScreen(
                 accepted != null -> PrimaryButton("안내 계속", onContinue, Modifier.fillMaxWidth())
                 driving -> Text("정차하면 수락·거절할 수 있어요 · 그동안 기존 장소로 안내", color = Ink.sub, fontSize = 18.sp)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SecondaryButton("${proposal.from.short} 그대로", onReject, Modifier.weight(1f))
-                    PrimaryButton("${proposal.to.short}으로 바꾸기", onAccept, Modifier.weight(1.4f))
+                    SecondaryButton("제안 거절", onReject, Modifier.weight(1f))
+                    PrimaryButton("목적지 바꾸기", onAccept, Modifier.weight(1.4f))
                 }
             }
         }

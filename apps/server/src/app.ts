@@ -5,8 +5,9 @@ import { HttpError } from './common/errors.ts';
 import { visitRoutes } from './modules/visit/visit.routes.ts';
 import { createVisitRepository } from './modules/visit/visit.repository.ts';
 import { realtime } from './realtime/index.ts';
+import { kakaoPlaceName, type PlaceNameLookup } from './modules/visit/place-name.ts';
 
-export async function buildApp(db: Db) {
+export async function buildApp(db: Db, placeName: PlaceNameLookup = kakaoPlaceName()) {
   // URLs contain bearer tokens and history device IDs, so omit automatic URL request logging.
   const app = Fastify({ logger: true, logController:new LogController({disableRequestLogging:true}), ajv:{customOptions:{removeAdditional:false,coerceTypes:false}} });
   app.setErrorHandler<FastifyError>((err,_req,reply)=>{
@@ -19,6 +20,6 @@ export async function buildApp(db: Db) {
   app.get('/health',async()=>({ok:true,database:'majung-db',facilityData:'EXAMPLE'}));
   await app.register(websocket);
   await app.register(realtime,{visits});
-  await app.register(visitRoutes,{prefix:'/api',visits});
+  await app.register(visitRoutes,{prefix:'/api',visits,placeName});
   return app;
 }

@@ -323,9 +323,10 @@ button {
   box-shadow: 0 2px 4px rgba(20, 24, 29, 0.12);
   font-size: 14px;
 }
+/* 핀 끝이 지도 가운데(제안 좌표)에 오도록 아래쪽 기준으로 놓는다 */
 .target {
   position: absolute;
-  top: 202px;
+  bottom: 50%;
   left: 50%;
   translate: -50% 0;
   display: flex;
@@ -347,9 +348,12 @@ button {
   white-space: nowrap;
 }
 .target-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  translate: -50% 0;
   width: 10px;
   height: 6px;
-  margin-top: -18px;
   border-radius: 4px;
   background: rgba(20, 24, 29, 0.35);
 }
@@ -392,9 +396,10 @@ button {
   font-size: 16px;
 }
 
-/* ── Leaflet 지도 ── */
-.leaflet-host { position: absolute; inset: 0; z-index: 0; }
-.map > :not(.leaflet-host) { z-index: 500; }
+/* ── 카카오맵 ── */
+.map-host { position: absolute; inset: 0; z-index: 0; }
+.map > :not(.map-host) { z-index: 500; }
+.map-error { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; color: var(--ink-sub); }
 .pin { position: relative; }
 .pin img { display: block; }
 .pin-label {
@@ -411,7 +416,6 @@ button {
 }
 .pin-proposed .pin-label { background: #d9480f; }
 .pin-ap .pin-label { background: #fff; color: var(--ink-sub); font-weight: 400; bottom: auto; top: 100%; }
-.leaflet-control-attribution { font-size: 10px; }
 
 .data-notice { margin: 0 0 12px; color: var(--ink-sub); font-size: 12px; }
 .location-note { margin: 12px 0 16px; color: var(--ink-sub); font-size: 13px; line-height: 1.5; }

@@ -32,7 +32,7 @@ fun distanceM(a: LatLng, b: LatLng): Double {
 }
 
 /** 확인된 승하차 지점 반경. 밖이면 "지도에서 고른 위치" */
-const val SNAP_RADIUS_M = 60.0
+const val SNAP_RADIUS_M = 20.0
 
 data class Nearest(val point: MapPoint, val distanceM: Double) {
     val snapped get() = distanceM <= SNAP_RADIUS_M

@@ -83,7 +83,7 @@ test('role authority, validation, optimistic concurrency and request replay are 
     await check(409,'POST',p+'/proposals',{requestId:'second',version:2,accessPointId:'4'});
     await check(409,'POST','/api/visits',{...body,accessPointId:'1'});
     const cancelled=await check(200,'DELETE',p+`/proposals/${pending.proposals[0].id}`,{requestId:'cancel',version:2});
-    assert.equal(cancelled.proposals[0].status,'EXPIRED');
+    assert.equal(cancelled.proposals[0].status,'CANCELLED');
     await check(403,'POST',p+'/rating',{requestId:'rating',version:3,rating:4,tags:[]});
     db.prepare("UPDATE visit SET expires_at='2000-01-01T00:00:00Z'").run();
     await check(410,'GET',d);
@@ -193,5 +193,44 @@ test('driver can directly change a non-pickup destination while pickup still req
     const dropped=await app.inject({method:'PATCH',url:`/api/visits/${dropoff.driverToken}`,payload:{requestId:'direct-dropoff',version:1,accessPointId:'1'}});
     assert.equal(dropped.statusCode,200,dropped.body);
     assert.equal(dropped.json().visit.confirmedAccessPointId,'1');
+  }finally{await app.close();db.close();}
+});
+
+test('a free map pin is proposed for one visit, accepted, and stays out of the shared facility list', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'majung-test-'));
+  const db = openDb(join(directory, 'db.sqlite'));
+  const app = await buildApp(db);
+  try {
+    const created = (await app.inject({method:'POST',url:'/api/visits',payload:{requestId:'free-pin-create',facilityId:'1',mode:'PICKUP',accessPointId:'1',driverDeviceId:'free-pin-device-0000000000'}})).json();
+    const location = {lat:37.5421,lng:127.2233};
+    const both = await app.inject({method:'POST',url:`/api/visits/${created.passengerToken}/proposals`,payload:{requestId:'free-pin-both',version:1,accessPointId:'2',location}});
+    assert.equal(both.statusCode,400);
+    const proposed = await app.inject({method:'POST',url:`/api/visits/${created.passengerToken}/proposals`,payload:{requestId:'free-pin-send',version:1,location}});
+    assert.equal(proposed.statusCode,200);
+    const snapshot = proposed.json();
+    const pin = snapshot.facility.accessPoints.find((p:{id:string}) => p.id === snapshot.proposals[0].accessPointId);
+    assert.deepEqual([pin.lat,pin.lng,pin.allowed,pin.name],[location.lat,location.lng,false,'지도에서 고른 위치']);
+    assert.equal(snapshot.visit.confirmedAccessPointId,'1');
+    const accepted = await app.inject({method:'POST',url:`/api/visits/${created.driverToken}/proposals/${snapshot.proposals[0].id}/respond`,payload:{requestId:'free-pin-accept',version:snapshot.visit.version,accept:true}});
+    assert.equal(accepted.statusCode,200);
+    assert.equal(accepted.json().visit.confirmedAccessPointId,pin.id);
+    const shared = (await app.inject({method:'GET',url:'/api/facilities'})).json();
+    assert.equal(shared[0].accessPoints.some((p:{id:string}) => p.id === pin.id),false);
+  } finally { await app.close(); db.close(); rmSync(directory,{recursive:true,force:true}); }
+});
+
+test('a free map pin uses the looked up address and still works when the lookup fails', async () => {
+  const db=openDb(':memory:');
+  const names=['스타필드 하남 (경기 하남시 미사대로 750)',null];
+  const app=await buildApp(db,async()=>names.shift()??null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'address-create'}})).json();
+    const passenger=`/api/visits/${session.passengerToken}`;
+    const send=async(requestId:string,version:number)=>(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId,version,location:{lat:37.5421,lng:127.2233}}})).json();
+    const pinName=(s:{proposals:{accessPointId:string}[];facility:{accessPoints:{id:string;name:string}[]}})=>s.facility.accessPoints.find(p=>p.id===s.proposals[0].accessPointId)?.name;
+    const first=await send('address-first',1);
+    assert.equal(pinName(first),'스타필드 하남 (경기 하남시 미사대로 750)');
+    const cancelled=(await app.inject({method:'DELETE',url:passenger+`/proposals/${first.proposals[0].id}`,payload:{requestId:'address-cancel',version:first.visit.version}})).json();
+    assert.equal(pinName(await send('address-fallback',cancelled.visit.version)),'지도에서 고른 위치');
   }finally{await app.close();db.close();}
 });

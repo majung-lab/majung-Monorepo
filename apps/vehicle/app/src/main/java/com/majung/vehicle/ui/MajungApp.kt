@@ -44,7 +44,6 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
     var mode by rememberSaveable { mutableStateOf(VisitMode.PICKUP) }
     var proposalId by rememberSaveable { mutableStateOf<String?>(null) }
     var dismissedProposal by rememberSaveable { mutableStateOf<String?>(null) }
-    var dismissedResult by rememberSaveable { mutableStateOf<String?>(null) }
     val snapshot = model.snapshot
     val visit = snapshot?.visit
     val facility = snapshot?.facility ?: model.facilities.firstOrNull { it.id == facilityId }
@@ -53,7 +52,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
     val context = "${facility?.name.orEmpty()} · ${selectedMode.label}"
     val home = { screen = Screen.HOME }
     val ownPending = snapshot?.proposals?.lastOrNull { it.proposedBy == "DRIVER" && it.status == "PENDING" }
-    val ownResult = snapshot?.proposals?.firstOrNull { it.proposedBy == "DRIVER" && it.status != "PENDING" }?.takeUnless { it.id == dismissedResult }
+    val ownResult = snapshot?.proposals?.firstOrNull()?.takeIf { it.proposedBy == "DRIVER" && it.status != "PENDING" && it.id != model.dismissedResult }
     val incoming = snapshot?.proposals?.lastOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" && it.id != dismissedProposal }
     val shownProposal = snapshot?.proposals?.firstOrNull { it.id == proposalId }
     val mapPoints = facility?.accessPoints.orEmpty().filter { it.allowed && if (selectedMode == VisitMode.PARK) it.kind == "PARKING_ENTRANCE" else it.kind == "PICKUP" }.map { MapPoint(it.id, it.name, LatLng(it.lat, it.lng)) }
@@ -126,14 +125,16 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onCancelVisit = if (driving) null else ({ model.phase("CANCELLED") { finish() } }),
                 navigationStatus = when (snapshot?.vehicle?.navResult) { "set" -> "내비 안내 중"; "failed" -> "내비 안내 실패"; else -> "내비 SDK 미연결 · 예시 시설" },
                 banner = ownResult?.let { proposal -> {
-                    val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; else -> ProposalResult.TIMEOUT }
+                    val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; "CANCELLED" -> ProposalResult.CANCELLED_BY_ME; else -> ProposalResult.TIMEOUT }
                     ResultBanner(result, facility?.accessPoints?.firstOrNull { it.id == proposal.fromAccessPointId }?.name.orEmpty(),
-                        facility?.accessPoints?.firstOrNull { it.id == proposal.accessPointId }?.name.orEmpty()) { dismissedResult = proposal.id }
+                        facility?.accessPoints?.firstOrNull { it.id == proposal.accessPointId }?.name.orEmpty()) { model.dismissResult(proposal.id) }
                 } })
             Screen.MOVE_PIN -> if (point != null && mapPoints.isNotEmpty()) MovePinScreen(point.name, driving,
+                currentPosition = LatLng(point.lat, point.lng),
                 onBack = { screen = Screen.MOVING }, points = mapPoints,
                 pendingTarget = ownPending?.let { p -> facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.name },
-                onPropose = { name -> mapPoints.firstOrNull { it.name == name }?.let { model.propose(it.id) } },
+                pendingPosition = ownPending?.let { p -> facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.let { LatLng(it.lat, it.lng) } },
+                onPropose = { registered, position -> if (registered != null) model.propose(registered.id) else model.proposeLocation(position.lat, position.lng) },
                 onCancel = { ownPending?.let { model.cancelProposal(it.id) { screen = Screen.MOVING } } })
             Screen.ARRIVAL -> when (selectedMode) {
                 VisitMode.PARK -> ParkArrivalScreen(context, point?.name.orEmpty(), onParked = { floor -> model.phase("COMPLETED", floor) { screen = Screen.REVIEW } }, onStillLooking = { screen = Screen.MOVING })
@@ -156,7 +157,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             val to = facility?.accessPoints?.firstOrNull { it.id == proposal.accessPointId }
             if (from != null && to != null) ProposalReceivedScreen(
                 FamilyProposal(from.name, to.name, proposal.reason ?: to.description, distanceM(LatLng(from.lat, from.lng), LatLng(to.lat, to.lng)).roundToInt()),
-                driving, response = when (proposal.status) { "ACCEPTED" -> true; "REJECTED", "EXPIRED" -> false; else -> null },
+                driving, response = when (proposal.status) { "ACCEPTED" -> true; "REJECTED", "EXPIRED", "CANCELLED" -> false; else -> null },
                 fromPosition = LatLng(from.lat, from.lng), toPosition = LatLng(to.lat, to.lng),
                 onAccept = { model.respond(proposal.id, true) }, onReject = { model.respond(proposal.id, false) },
                 onContinue = { dismissedProposal = proposal.id; proposalId = null })

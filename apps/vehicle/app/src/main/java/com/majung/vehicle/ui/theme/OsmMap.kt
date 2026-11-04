@@ -5,6 +5,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -17,6 +18,7 @@ import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -54,8 +56,11 @@ fun OsmMap(
     locked: Boolean = false,
     /** 값이 바뀌면 그 좌표로 지도를 옮긴다 (가장 가까운 지점으로 맞추기) */
     focus: LatLng? = null,
+    /** 새 목록이 오면 그 점들이 보이게 지도를 맞춘다 (기존·제안·전체 보기) */
+    view: List<LatLng>? = null,
     onMoveEnd: ((LatLng) -> Unit)? = null,
 ) {
+    val shownView = remember { arrayOfNulls<List<LatLng>>(1) }
     val moveEnd by rememberUpdatedState(onMoveEnd)
     val isLocked by rememberUpdatedState(locked)
     AndroidView(
@@ -83,6 +88,13 @@ fun OsmMap(
         },
         update = { map ->
             if (focus != null && map.tag != focus) { map.tag = focus; map.controller.animateTo(focus.geo()) }
+            if (view != null && shownView[0] !== view) {
+                shownView[0] = view
+                map.post {
+                    if (view.size == 1) { map.controller.setZoom(18.0); map.controller.animateTo(view[0].geo()) }
+                    else map.zoomToBoundingBox(BoundingBox.fromGeoPoints(view.map { it.geo() }), true, 140)
+                }
+            }
             map.overlays.removeAll { it is Marker || it is Polyline }
             dashed?.let { pts ->
                 map.overlays.add(Polyline(map).apply {

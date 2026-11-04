@@ -2,7 +2,7 @@
 export type Role = 'DRIVER' | 'PASSENGER';
 export type VisitMode = 'PICKUP' | 'PARK' | 'DROPOFF';
 export type VisitPhase = 'PREPARING' | 'MOVING' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
-export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 export type NaviStatus = 'NONE' | 'REQUESTED' | 'GUIDING' | 'FAILED';
 export type PassengerReadiness = 'UNSEEN' | 'SEEN' | 'READY' | 'HEADING_OUT';
 export interface Visit {
@@ -88,7 +88,8 @@ export interface UpdateVisitRequest extends MutationRequest {
   parkingFloor?: string | null;
   vehicle?: { lat: number | null; lng: number | null; etaSec: number | null; navResult?: 'set' | 'failed' };
 }
-export interface CreateProposalRequest extends MutationRequest { accessPointId: string; reason?: string }
+/** Exactly one of accessPointId (registered point) or location (free map pin). */
+export interface CreateProposalRequest extends MutationRequest { accessPointId?: string; location?: { lat: number; lng: number }; reason?: string }
 export interface RespondProposalRequest extends MutationRequest { accept: boolean }
 export interface RateVisitRequest extends MutationRequest { rating: number; tags: string[]; comment?: string }
 export interface HistoryEntry { visit: Visit; facility: Facility; rating: PlaceRating | null }

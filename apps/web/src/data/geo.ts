@@ -11,7 +11,7 @@ export function distanceM([lat1, lng1]: LatLng, [lat2, lng2]: LatLng): number {
 }
 
 /** 등록된 승하차 지점 선택 반경 (m). 밖이면 "지도에서 고른 위치" */
-export const SNAP_RADIUS_M = 60;
+export const SNAP_RADIUS_M = 20;
 
 export function nearest<T extends LocatedPoint>(points: T[], at: LatLng) {
   let best = points[0];

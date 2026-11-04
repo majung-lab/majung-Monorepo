@@ -28,7 +28,7 @@ export const api = {
   readiness: (token: string, version: number, passengerReadiness: PassengerReadiness) => mutation(path(token), 'PATCH', version, { passengerReadiness }),
   location: (token: string, version: number, lat: number, lng: number) => mutation(path(token), 'PATCH', version, { passengerLocation: { lat, lng } }),
   stopLocation: (token: string, version: number) => mutation(path(token), 'PATCH', version, { passengerLocation: null }),
-  propose: (token: string, version: number, accessPointId: string) => mutation(`${path(token)}/proposals`, 'POST', version, { accessPointId }),
+  propose: (token: string, version: number, target: string | { lat: number; lng: number }) => mutation(`${path(token)}/proposals`, 'POST', version, typeof target === 'string' ? { accessPointId: target } : { location: target }),
   respond: (token: string, version: number, id: string, accept: boolean) => mutation(`${path(token)}/proposals/${encodeURIComponent(id)}/respond`, 'POST', version, { accept }),
   cancel: (token: string, version: number, id: string) => mutation(`${path(token)}/proposals/${encodeURIComponent(id)}`, 'DELETE', version),
 };
