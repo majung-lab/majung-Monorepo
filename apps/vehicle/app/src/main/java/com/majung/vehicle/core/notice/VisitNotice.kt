@@ -54,8 +54,9 @@ class AndroidVisitNotifier(context: Context) : VisitNotifier {
     override fun alert(key: String, title: String, text: String) {
         if (alerted.getString("last", null) == key) return
         alerted.edit().putString("last", key).apply()
-        OverlayBanner.alert(context, title, text)
         if (VisitNoticeService.appVisible) return // 화면에 이미 보이는 내용은 알리지 않는다
+        // 내비 위에 앱 디자인 카드를 띄울 수 있으면 시스템 알림 팝업은 띄우지 않는다
+        if (OverlayBanner.canShow(context)) return OverlayBanner.alert(context, title, text)
         manager.notify(ID_EVENT, Notification.Builder(context, CHANNEL_EVENT)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title).setContentText(text)
@@ -69,7 +70,7 @@ class AndroidVisitNotifier(context: Context) : VisitNotifier {
         val open = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         runCatching { context.startActivity(open) }
-        OverlayBanner.alert(context, title, text)
+        if (OverlayBanner.canShow(context)) return OverlayBanner.alert(context, title, text)
         manager.notify(ID_EVENT, Notification.Builder(context, CHANNEL_EVENT)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title).setContentText(text)

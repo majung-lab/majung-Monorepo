@@ -127,9 +127,17 @@ class PleosNaviClient(context: Context) : NaviClient {
 
     private fun finish(result: NaviResult) {
         main.removeCallbacks(timeout)
+        // 내비가 다시 켜지면 이전 연결은 죽어 있으므로, 실패하면 다음 시도 때 새로 연결한다
+        if (result is NaviResult.Failed) reconnectNextTime()
         val callback = pending ?: return
         pending = null
         callback(result)
+    }
+
+    private fun reconnectNextTime() {
+        helper?.let { old -> runCatching { old.removeListener(listener); old.release() } }
+        helper = null
+        connected = false
     }
 
     private companion object {

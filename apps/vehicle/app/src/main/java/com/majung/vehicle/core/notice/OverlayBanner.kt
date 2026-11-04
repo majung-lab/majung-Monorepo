@@ -19,15 +19,17 @@ import com.majung.vehicle.MainActivity
  * 내비가 앞에 있는 동안 화면 위쪽에 떠 있는 마중 배너.
  * - 내비 위쪽 가장자리에 붙어 있고, 방문이 끝날 때까지 떠 있다. 누르면 마중 화면으로 돌아온다.
  * - 위로 밀면 작은 "마중" 손잡이만 남고, 손잡이를 내리거나 누르면 다시 펼쳐진다.
- * - 가족 응답 같은 새 소식이 오면 접혀 있어도 다시 펼쳐진다.
- * - 마중 화면이 보이는 동안에는 숨는다.
+ * - 배너는 목적지 상태만 보여 준다. 가족 응답 같은 새 소식은 배너 아래에 따로 뜨는 카드(앱 제안 화면과 같은 디자인)로 보여 준다.
+ * - 마중 화면이 보이는 동안에는 둘 다 숨는다. 마중을 보고 나면 카드는 읽은 것으로 보고 치운다.
  * 다른 앱 위에 그리기 권한이 없으면 아무것도 하지 않는다 (알림 목록의 알림만 남는다).
  */
 object OverlayBanner {
     private var view: LinearLayout? = null
+    private var popup: LinearLayout? = null
     private var title = ""
     private var text = ""
-    private var highlight = false
+    private var popupTitle: String? = null
+    private var popupText = ""
     private var active = false
     private var collapsed = false
     private var appVisible = false
@@ -35,39 +37,43 @@ object OverlayBanner {
     /** 진행 중인 방문 상태 */
     fun update(context: Context, title: String, text: String) {
         active = true
-        if (this.title != title || !highlight) { this.title = title; this.text = text }
+        this.title = title; this.text = text
         render(context)
     }
 
-    /** 새 소식: 접어 뒀어도 다시 펼치고 강조한다 */
+    /** 새 소식: 배너는 그대로 두고 아래에 따로 카드로 띄운다 */
     fun alert(context: Context, title: String, text: String) {
         active = true
-        this.title = title; this.text = text; highlight = true
-        collapsed = false
+        popupTitle = title; popupText = text
+        removePopup(context) // 내용이 바뀌면 새로 그린다
         render(context)
     }
+
+    fun canShow(context: Context) = Settings.canDrawOverlays(context)
 
     fun setAppVisible(context: Context, visible: Boolean) {
         appVisible = visible
-        // 마중을 보고 나면 강조한 소식은 읽은 것으로 본다
-        if (visible) highlight = false
+        // 마중을 보고 나면 새 소식은 읽은 것으로 본다
+        if (visible) popupTitle = null
         render(context)
     }
 
     fun stop(context: Context) {
         active = false
         collapsed = false
+        popupTitle = null
         render(context)
     }
 
     private fun render(context: Context) {
         val shouldShow = active && !appVisible && Settings.canDrawOverlays(context)
+        if (shouldShow && popupTitle != null) { if (popup == null) createPopup(context.applicationContext) } else removePopup(context)
         if (!shouldShow) return remove(context)
         val banner = view ?: create(context.applicationContext) ?: return
         (banner.getChildAt(0) as TextView).apply { text = title; visibility = if (collapsed) View.GONE else View.VISIBLE }
         (banner.getChildAt(1) as TextView).apply {
             text = "${this@OverlayBanner.text} · 위로 밀면 접기"
-            setTextColor(if (highlight) ACCENT else SUB)
+            setTextColor(SUB)
             visibility = if (collapsed) View.GONE else View.VISIBLE
         }
         banner.getChildAt(2).visibility = if (collapsed) View.VISIBLE else View.GONE
@@ -140,6 +146,59 @@ object OverlayBanner {
         } catch (_: Exception) { null }
     }
 
+    /** 앱의 "가족 제안" 카드와 같은 모양: 어두운 카드, 1dp 테두리, 굵은 제목, 주황 장소명, 확인하기/닫기 */
+    private fun createPopup(context: Context) {
+        val scale = scale(context)
+        fun px(dp: Int) = (dp * scale).toInt()
+        fun size(view: TextView, sp: Int) = view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px(sp).toFloat())
+        fun box(color: Int, stroke: Int? = null) = GradientDrawable().apply {
+            setColor(color); cornerRadius = px(14).toFloat(); stroke?.let { setStroke(px(1), it) }
+        }
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(20), px(16), px(20), px(16))
+            background = box(SURFACE, LINE)
+            addView(TextView(context).apply { text = "가족"; setTextColor(SUB); size(this, 13) })
+            addView(TextView(context).apply {
+                text = popupTitle; setTextColor(TEXT); size(this, 20); typeface = Typeface.DEFAULT_BOLD
+                setPadding(0, px(4), 0, 0)
+            })
+            addView(TextView(context).apply {
+                text = popupText; setTextColor(PIN); size(this, 18); typeface = Typeface.DEFAULT_BOLD
+                setPadding(0, px(4), 0, 0)
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, px(14), 0, 0)
+                fun button(label: String, bg: Int, fg: Int, onClick: () -> Unit) = TextView(context).apply {
+                    text = label; setTextColor(fg); size(this, 16); typeface = Typeface.DEFAULT_BOLD
+                    gravity = Gravity.CENTER; background = box(bg)
+                    setOnClickListener { onClick() }
+                }
+                addView(button("확인하기", ACCENT, ON_ACCENT) { openApp(context) }, LinearLayout.LayoutParams(0, px(48), 1f))
+                addView(View(context), LinearLayout.LayoutParams(px(10), 1))
+                addView(button("닫기", RAISED, TEXT) { popupTitle = null; removePopup(context) }, LinearLayout.LayoutParams(0, px(48), 1f))
+            })
+        }
+        val params = WindowManager.LayoutParams(
+            px(360), WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            // 배너 바로 아래, 같은 오른쪽 줄에 따로 띄운다
+            gravity = Gravity.TOP or Gravity.END
+            x = px(90); y = px(78)
+        }
+        runCatching { context.getSystemService(WindowManager::class.java).addView(card, params); popup = card }
+    }
+
+    private fun removePopup(context: Context) {
+        val card = popup ?: return
+        popup = null
+        runCatching { context.applicationContext.getSystemService(WindowManager::class.java).removeView(card) }
+    }
+
     private fun remove(context: Context) {
         val banner = view ?: return
         view = null
@@ -162,4 +221,9 @@ object OverlayBanner {
     private const val TEXT = 0xFFFFFFFF.toInt()
     private const val SUB = 0xFFB4BCC6.toInt()
     private const val ACCENT = 0xFFF5A524.toInt()
+    private const val ON_ACCENT = 0xFF1A1300.toInt()
+    private const val SURFACE = 0xFF161D24.toInt()
+    private const val RAISED = 0xFF1F2830.toInt()
+    private const val LINE = 0xFF2A3540.toInt()
+    private const val PIN = 0xFFFF7A45.toInt()
 }

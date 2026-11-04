@@ -95,9 +95,9 @@ class VehicleViewModel @JvmOverloads constructor(
         }
         value.proposals.firstOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" }?.let { p ->
             val to = value.facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.name ?: "지도에서 고른 위치"
-            notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", "$to · 눌러서 확인")
+            notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", to)
         }
-        if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", "$point · 눌러서 마중 열기")
+        if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", point)
     }
 
     /**
