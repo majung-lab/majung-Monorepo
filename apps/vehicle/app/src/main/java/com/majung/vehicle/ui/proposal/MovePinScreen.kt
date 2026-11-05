@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -116,7 +117,7 @@ fun MovePinScreen(
 
     Row(Modifier.fillMaxSize().background(Ink.bg)) {
         // 1280dp 기준 820dp(64%) — 좁은 화면에서도 오른쪽 정보가 찌그러지지 않게 비율로
-        Box(Modifier.weight(0.64f).fillMaxHeight()) {
+        Box(Modifier.weight(0.64f).fillMaxHeight().clipToBounds()) {
             if (LocalStaticMap.current) {
                 MockMap(STARFIELD_MAP, Modifier.fillMaxSize())
             } else {
@@ -133,6 +134,15 @@ fun MovePinScreen(
             }
             pendingPosition?.let {
                 ProposalMapViews(here.pos, it, { points -> view = points }, Modifier.align(Alignment.BottomStart).padding(16.dp))
+            }
+            // 고르기 전에 지도를 옮겼으면 버튼 한 번으로 지금 픽업 장소로 되돌린다
+            if (!waiting && !driving && pendingPosition == null && distM > 0) {
+                Text(
+                    "원래 위치로",
+                    Modifier.align(Alignment.BottomStart).padding(16.dp).card(Ink.surface, 21)
+                        .clickable { view = listOf(here.pos) }.padding(horizontal = 18.dp, vertical = 10.dp),
+                    Ink.accent, 16.sp, fontWeight = FontWeight.Bold,
+                )
             }
             Text(
                 if (waiting) "가족에게 보냈어요" else "지도를 움직여 핀을 맞춰 주세요",

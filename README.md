@@ -70,6 +70,38 @@ npm run dev:web:https
 - 주소 변환: `apps/server/.env.example`을 `apps/server/.env`로 복사하고 `KAKAO_REST_KEY`에 REST API 키를 넣는다. 없으면 자유 핀이 "지도에서 고른 위치"로 표시된다.
 - `.env`는 커밋하지 않는다. 값을 바꾸면 해당 서버를 다시 시작한다.
 
+### Pleos 에뮬레이터에서 차량 앱 실행
+
+내장 내비(Pleos NaviHelper) 연동은 Pleos 에뮬레이터에서만 동작한다. 일반 AAOS 에뮬레이터에서는 "내비 연결 실패"로 표시되고 나머지 기능은 그대로 쓸 수 있다.
+
+1. Android Studio → SDK Manager → SDK Update Sites에 Pleos 시스템 이미지 주소를 추가한다.
+   - Apple Silicon(M1 이상): `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-arm64-sys-img.xml`
+   - Intel: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml`
+2. SDK Platforms에서 **Pleos Connect v2.1.0 APIs** 시스템 이미지를 설치한다. 명령줄로는 다음과 같다(설치 후 약 19GB를 차지하므로 여유 공간을 확인한다).
+
+   ```bash
+   sdkmanager "system-images;android-34;pleos_car_emulator;arm64-v8a"
+   ```
+
+3. Device Manager에서 이 이미지로 AVD를 만든다(예: `Pleos_Car`). Boot option은 **Cold boot**로 둔다.
+4. 서버(`npm run dev:server`)를 켜고 에뮬레이터를 실행한 뒤 앱을 설치한다. Pleos 에뮬레이터는 운전자 사용자(user 10)로 동작하므로 `--user 10`을 붙인다.
+
+   ```bash
+   cd apps/vehicle
+   ./gradlew assembleDebug
+   adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk
+   adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.POST_NOTIFICATIONS
+   # 내비 위에 떠 있는 마중 배너 (에뮬레이터에는 이 권한을 켜는 설정 화면이 없다)
+   adb -s emulator-5554 shell appops set --user 10 com.majung.vehicle SYSTEM_ALERT_WINDOW allow
+   ```
+
+5. 아래 독의 앱 목록(네모 4개)에서 **마중**을 실행한다. 휴대폰이 USB로 함께 연결돼 있으면 `adb` 명령에 `-s emulator-5554`를 꼭 붙인다.
+
+- 이동을 시작하면 목적지가 내장 내비에 들어간다. 이동 중 화면의 "내비 보기"로 내비에 가고, 내비 위쪽의 마중 배너(위로 밀면 접힘, 내리면 펼침)나 독의 앱 버튼으로 돌아온다.
+- 큰 Pleos 화면(1682×1210dp)에서는 앱이 자동으로 약 2.2배 커진다. 기존 차량 화면 크기에서는 그대로다.
+- 에뮬레이터 내비의 지도 바탕은 비어 보일 수 있다. 경로선·길 안내는 나온다.
+- 에뮬레이터 내비는 `adb emu geo fix` 위치를 따라 움직이지 않는다. 그래서 내비 도착 시 자동 "도착했어요"는 에뮬레이터에서 아직 확인하지 못했다.
+
 ## DB 원본과 보존
 
 [majung-lab/majung-db](https://github.com/majung-lab/majung-db)의 커밋 `67ad83e1cef5a3c706920a9a3adc7c425007f30c`를 통합했다. GitHub 저장소는 SQL 원본이며 실행 중인 원격 DB 서비스가 아니다. 서버는 원본 13개 테이블·뷰·트리거와 시설 시드를 [vendored SQL](apps/server/src/db/majung-db/UPSTREAM.md)에서 초기화하고, 앱의 데이터는 위 SQLite 파일에 저장한다.

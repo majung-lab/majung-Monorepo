@@ -100,7 +100,7 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         modifier.height(64.dp).clip(RoundedCornerShape(14.dp)).background(Ink.accent).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Ink.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
     }
 }
 
@@ -111,7 +111,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         modifier.height(64.dp).card(Ink.surface, 14).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Ink.text, fontSize = fontSize.sp)
+        Text(text, color = Ink.text, fontSize = fontSize.sp, maxLines = 1, softWrap = false)
     }
 }
 

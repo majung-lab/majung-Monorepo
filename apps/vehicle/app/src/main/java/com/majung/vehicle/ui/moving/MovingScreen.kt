@@ -21,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +49,9 @@ fun MovingScreen(
     changed: Boolean = false,
     banner: (@Composable () -> Unit)? = null,
     navigationStatus: String = "내비 연동 준비 중",
+    onRetryNavi: (() -> Unit)? = null,
+    /** 내장 내비 화면으로 넘어가기 (돌아올 때는 알림이나 독의 앱 버튼) */
+    onShowNavi: (() -> Unit)? = null,
     onCancelVisit: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
@@ -56,7 +61,8 @@ fun MovingScreen(
             Spacer(Modifier.height(134.dp))
             Text(heading, color = Ink.sub, fontSize = 18.sp)
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(destination, color = Ink.text, fontSize = 52.sp, fontWeight = FontWeight.Bold, lineHeight = 60.sp)
+                // 좁은 폭에서 줄이 바뀌어도 "구/역"처럼 글자 중간에서 끊기지 않게 어절 단위로
+                Text(destination, Modifier.weight(1f, fill = false), color = Ink.text, fontSize = 52.sp, fontWeight = FontWeight.Bold, lineHeight = 60.sp, style = TextStyle(lineBreak = LineBreak.Heading))
                 if (changed) {
                     Text(
                         "바뀐 장소",
@@ -67,13 +73,16 @@ fun MovingScreen(
                 }
             }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                // TODO: NaviResult 연결 (실패 시 문구 교체)
                 if (navigationStatus == "내비 안내 중") Icon(painterResource(R.drawable.ic_check_green), null, tint = Color.Unspecified)
-                Text(navigationStatus, Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
+                Text(
+                    navigationStatus,
+                    Modifier.padding(start = 8.dp).then(if (onRetryNavi != null) Modifier.clickable(onClick = onRetryNavi) else Modifier),
+                    if (onRetryNavi != null) Ink.accent else Ink.sub, 18.sp,
+                )
                 Text(etaMin?.let { "· 약 ${it}분" } ?: "· ETA 정보 없음", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
             }
         }
-        Column(Modifier.width(380.dp).padding(top = 54.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.width(300.dp).padding(top = 54.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             family?.let {
                 Column(Modifier.fillMaxWidth().height(134.dp).card(Ink.surface, 16).padding(horizontal = 21.dp, vertical = 20.dp)) {
                     Text("가족", color = Ink.sub, fontSize = 14.sp)
@@ -87,6 +96,7 @@ fun MovingScreen(
             ) {
                 Text("도착했어요", color = Ink.onAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
+            onShowNavi?.let { OutlineButton("내비 보기", it, Modifier.fillMaxWidth()) }
             onChangePlace?.let { OutlineButton("위치 바꾸기", it, Modifier.fillMaxWidth()) }
             onCancelVisit?.let { OutlineButton("방문 취소", it, Modifier.fillMaxWidth()) }
         }

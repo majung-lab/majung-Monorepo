@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 마중 핀: 108dp 캔버스, 가운데 66dp 안전 영역 안 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M54 82C48 67 32 54 32 38C32 25.85 41.85 16 54 16C66.15 16 76 25.85 76 38C76 54 60 67 54 82Z"
+        android:fillColor="#F5A524" />
+    <path android:pathData="M54 47C58.97 47 63 42.97 63 38C63 33.03 58.97 29 54 29C49.03 29 45 33.03 45 38C45 42.97 49.03 47 54 47Z"
+        android:fillColor="#0E1318" />
+    <path android:pathData="M40 88H68" android:strokeColor="#F5A524" android:strokeWidth="4" android:strokeLineCap="round" />
+</vector>

@@ -49,6 +49,9 @@ data class VisitRecord(
     val mode: VisitMode,
     val outcome: String,
     val weatherTime: String,
+    /** 다시 가기로 같은 장소·지점에 바로 새 방문을 만들 때 쓴다 */
+    val facilityId: String = "",
+    val pointId: String = "",
 )
 
 val VisitMode.label: String
