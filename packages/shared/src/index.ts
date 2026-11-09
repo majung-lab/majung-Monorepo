@@ -117,3 +117,6 @@ export interface CreateProposalRequest extends MutationRequest { accessPointId?:
 export interface RespondProposalRequest extends MutationRequest { accept: boolean }
 export interface RateVisitRequest extends MutationRequest { rating: number; tags: string[]; comment?: string }
 export interface HistoryEntry { visit: Visit; facility: Facility; rating: PlaceRating | null }
+/** 운전자가 동승자 링크를 문자로 보낸다. 받는 번호는 저장하지 않는다 */
+export interface CreateInviteRequest { requestId: string; phone: string }
+export interface InviteResult { sentTo: string }

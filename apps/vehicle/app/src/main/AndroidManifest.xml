@@ -18,6 +18,8 @@
     <!-- 내비 도착 시 마중 화면을 앞으로 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- Pleos NaviHelper: 경로 정보 조회, 목적지 설정 -->
+    <!-- 연결된 휴대폰 연락처에서 골라 동승자 링크를 문자로 보낸다 (발송은 서버가 한다) -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
 

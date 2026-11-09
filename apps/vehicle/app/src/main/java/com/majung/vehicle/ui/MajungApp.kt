@@ -22,6 +22,7 @@ import com.majung.vehicle.ui.arrival.*
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.history.HistoryScreen
 import com.majung.vehicle.ui.home.HomeScreen
+import com.majung.vehicle.ui.invite.ContactsRoute
 import com.majung.vehicle.ui.invite.InviteScreen
 import com.majung.vehicle.ui.mode.ModeScreen
 import com.majung.vehicle.ui.moving.*
@@ -35,7 +36,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-private enum class Screen { HOME, DESTINATION, MODE, PLACE, INVITE, MOVING, ARRIVAL, REVIEW, HISTORY, MOVE_PIN }
+private enum class Screen { HOME, DESTINATION, MODE, PLACE, INVITE, CONTACTS, MOVING, ARRIVAL, REVIEW, HISTORY, MOVE_PIN }
 private val SHOWN_WHILE_DRIVING = setOf(Screen.HOME, Screen.MOVING, Screen.ARRIVAL, Screen.MOVE_PIN)
 
 @Composable
@@ -103,7 +104,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             "ARRIVED" -> screen = Screen.ARRIVAL
             "MOVING" -> screen = Screen.MOVING
             "PREPARING" -> screen = Screen.INVITE
-            null -> if (screen in setOf(Screen.MOVING, Screen.INVITE, Screen.ARRIVAL, Screen.REVIEW, Screen.MOVE_PIN)) home()
+            null -> if (screen in setOf(Screen.MOVING, Screen.INVITE, Screen.CONTACTS, Screen.ARRIVAL, Screen.REVIEW, Screen.MOVE_PIN)) home()
         }
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
@@ -119,6 +120,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             Screen.MODE -> Screen.DESTINATION
             Screen.PLACE -> if (visit == null) Screen.MODE else Screen.MOVING
             Screen.MOVE_PIN -> Screen.MOVING
+            Screen.CONTACTS -> Screen.INVITE
             else -> Screen.HOME
         }
     }
@@ -143,7 +145,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 "${BuildConfig.WEB_URL.trimEnd('/')}/v/${model.passengerToken.orEmpty()}", onBack = home,
                 onDepart = { model.phase("MOVING") { screen = Screen.MOVING } },
                 onLater = { model.phase("MOVING") { screen = Screen.MOVING } },
-                onCancelVisit = { model.phase("CANCELLED") { finish() } })
+                onCancelVisit = { model.phase("CANCELLED") { finish() } },
+                onContacts = { screen = Screen.CONTACTS })
+            Screen.CONTACTS -> ContactsRoute(model, onBack = { screen = Screen.INVITE })
             Screen.MOVING -> MovingScreen(context, point?.name.orEmpty(),
                 etaMin = snapshot?.vehicle?.etaSec?.let { ceil(it / 60.0).toInt() },
                 family = if (selectedMode != VisitMode.PICKUP || driving) null else FamilyStatus(when (visit?.passengerReadiness) {

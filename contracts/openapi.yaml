@@ -151,6 +151,29 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snapshot' }
         default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/invites:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    post:
+      operationId: inviteBySms
+      description: >
+        Driver alone texts the passenger link to a Korean mobile number while the visit is not
+        COMPLETED/CANCELLED. The server builds the message and link itself (PASSENGER_WEB_URL), so
+        clients cannot send arbitrary text. The number is not stored; only the masked number is
+        returned. Same requestId does not send twice. At most 5 messages per visit (429).
+        SMS_PROVIDER=console (default) only prints the message for local development.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInviteRequest' }
+      responses:
+        '200':
+          description: Sent (or replayed) invite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InviteResult' }
+        default: { $ref: '#/components/responses/Error' }
   /api/history:
     get:
       operationId: listHistory
@@ -342,6 +365,18 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
             - { type: 'null' }
+    CreateInviteRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, phone]
+      properties:
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        phone: { type: string, maxLength: 32, description: 'Korean mobile number; hyphens, spaces and +82 accepted' }
+    InviteResult:
+      type: object
+      required: [sentTo]
+      properties:
+        sentTo: { type: string, description: 'Masked number, e.g. 010-****-5678' }
     MutationRequest:
       type: object
       additionalProperties: false

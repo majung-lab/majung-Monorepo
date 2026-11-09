@@ -213,7 +213,16 @@ export function createVisitRepository(db: Db) {
   function history(driverDeviceId:string):HistoryEntry[] {
     return all<VisitRow>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId).map(v=>({visit:toVisit(v),facility:visitFacility(v),rating:rating(v.id)}));
   }
-  return {facilities,create,snapshot,update,propose,respond,rate,history,
+  /** 문자 초대용: 운전자 토큰으로만, 끝나지 않은 방문의 동승자 토큰을 꺼낸다 */
+  function inviteTarget(token:string) {
+    const a=actor(token);
+    requireRole(a,'driver');
+    const v=row(a.visit_id);
+    if(['COMPLETED','CANCELLED'].includes(phaseFromDb[v.status])) return error(409,'VISIT_ENDED','이미 끝난 방문이에요');
+    const passenger=one<{token:string}>("SELECT token FROM participant WHERE visit_id=? AND role='passenger'",v.id) ?? error(404,'VISIT_NOT_FOUND','방문을 찾을 수 없어요');
+    return {visitId:v.id,passengerToken:passenger.token,facilityName:visitFacility(v).name};
+  }
+  return {facilities,create,snapshot,update,propose,respond,rate,history,inviteTarget,
     subscribe(token:string,listener:()=>void) {
       const a=actor(token);const set=listeners.get(a.visit_id)??new Set<()=>void>();set.add(listener);listeners.set(a.visit_id,set);
       return ()=>{set.delete(listener);if(!set.size) listeners.delete(a.visit_id);};

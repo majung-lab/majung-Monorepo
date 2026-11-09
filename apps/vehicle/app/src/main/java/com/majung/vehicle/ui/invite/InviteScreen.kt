@@ -40,6 +40,8 @@ fun InviteScreen(
     onDepart: () -> Unit = {},
     onLater: () -> Unit = {},
     onCancelVisit: (() -> Unit)? = null,
+    /** 연락처에서 골라 문자로 보내기. null이면 버튼을 숨긴다 */
+    onContacts: (() -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
         BackHeader("링크 전달", onBack)
@@ -50,7 +52,7 @@ fun InviteScreen(
             }
             Column(Modifier.padding(start = 40.dp)) {
                 Text(
-                    "운전자 폰으로 찍고,\n가족에게 링크를 보내 주세요",
+                    if (onContacts != null) "폰으로 찍거나,\n연락처에서 바로 보내 주세요" else "운전자 폰으로 찍고,\n가족에게 링크를 보내 주세요",
                     Modifier.padding(top = 4.dp),
                     Ink.text, 30.sp, fontWeight = FontWeight.Bold, lineHeight = 40.sp,
                 )
@@ -69,8 +71,11 @@ fun InviteScreen(
                 // 좁은 화면에서도 글자가 세로로 쌓이지 않게: 출발은 한 줄 전체, 나머지는 아래 줄에 나눠 둔다
                 PrimaryButton("픽업 장소로 출발", onDepart, Modifier.padding(top = 18.dp).fillMaxWidth())
                 Row(Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SecondaryButton("나중에 알리기", onLater, Modifier.weight(1f))
-                    onCancelVisit?.let { SecondaryButton("방문 취소", it, Modifier.weight(1f)) }
+                    // 버튼 셋이 한 줄에 들어가면 좁은 화면에서 글자가 잘리므로 조금 작게
+                    val size = if (onContacts != null) 17 else 20
+                    onContacts?.let { SecondaryButton("연락처 보기", it, Modifier.weight(1f), size) }
+                    SecondaryButton("나중에 알리기", onLater, Modifier.weight(1f), size)
+                    onCancelVisit?.let { SecondaryButton("방문 취소", it, Modifier.weight(1f), size) }
                 }
             }
         }

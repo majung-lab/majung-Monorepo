@@ -8,8 +8,15 @@ import { realtime } from './realtime/index.ts';
 import { kakaoPlaceName, type PlaceNameLookup } from './modules/visit/place-name.ts';
 import { weatherFromEnv, type WeatherLookup } from './modules/weather/weather.ts';
 import { weatherRoutes } from './modules/weather/weather.routes.ts';
+import { inviteRoutes } from './modules/notification/invite.routes.ts';
+import { smsFromEnv, type SmsSender } from './modules/notification/sms.ts';
 
-export interface AppOptions { weather?: WeatherLookup }
+export interface AppOptions {
+  weather?: WeatherLookup;
+  sms?: SmsSender;
+  /** 문자에 담는 동승자 웹 주소. 휴대폰에서 열려야 하므로 실제로는 PC의 LAN IP나 배포 주소 */
+  passengerWebUrl?: string;
+}
 
 export async function buildApp(db: Db, placeName: PlaceNameLookup = kakaoPlaceName(), options: AppOptions = {}) {
   const weather = options.weather ?? weatherFromEnv();
@@ -27,5 +34,6 @@ export async function buildApp(db: Db, placeName: PlaceNameLookup = kakaoPlaceNa
   await app.register(realtime,{visits});
   await app.register(visitRoutes,{prefix:'/api',visits,placeName,weather});
   await app.register(weatherRoutes,{prefix:'/api',visits,weather});
+  await app.register(inviteRoutes,{prefix:'/api',visits,sms:options.sms??smsFromEnv(),passengerWebUrl:options.passengerWebUrl??process.env.PASSENGER_WEB_URL??'http://localhost:5173'});
   return app;
 }
