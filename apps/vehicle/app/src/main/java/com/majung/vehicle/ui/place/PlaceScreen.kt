@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,7 +90,7 @@ private fun PointCard(point: AccessPoint, selected: Boolean, modifier: Modifier,
     } else {
         modifier.card(Ink.surface, 18)
     }
-    Column(box.height(168.dp).clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 22.dp)) {
+    Column(box.height(200.dp).clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 22.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(point.name, Modifier.weight(1f), Ink.text, 26.sp, fontWeight = FontWeight.Bold)
             if (point.recommended) {
@@ -104,6 +105,8 @@ private fun PointCard(point: AccessPoint, selected: Boolean, modifier: Modifier,
             point.reason,
             Modifier.padding(top = 6.dp),
             if (selected) Ink.accentBody else Ink.sub, 18.sp, lineHeight = 26.sp,
+            // 지점 설명이 길어도 태그가 밀려나지 않게 두 줄까지만
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             point.tags.forEach { Tag(it, if (selected) Ink.accentTag else Ink.tag) }
