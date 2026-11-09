@@ -56,6 +56,36 @@ class VehicleViewModel @JvmOverloads constructor(
         }
     }
 
+    /** 문자 초대: 보내는 중인 번호, 이번 방문에서 보낸 번호, 마지막 결과 문구 */
+    var inviteSending by mutableStateOf<String?>(null); private set
+    var invitedNumbers by mutableStateOf<Set<String>>(emptySet()); private set
+    var inviteNotice by mutableStateOf<String?>(null); private set
+
+    /** 동승자 링크를 문자로 보낸다. 번호는 서버로만 보내고 앱에 저장하지 않는다 */
+    fun sendInvite(name: String?, digits: String) {
+        val token = driverToken
+        if (token == null) { inviteNotice = "진행 중인 방문이 없어요"; return }
+        if (inviteSending != null) return
+        inviteSending = digits
+        scope.launch {
+            inviteNotice = try {
+                val body = buildJsonObject { put("requestId", UUID.randomUUID().toString()); put("phone", digits) }
+                val result: InviteResult = api.write("POST", "/api/visits/$token/invites", body)
+                invitedNumbers = invitedNumbers + digits
+                "${name ?: result.sentTo}님께 링크를 보냈어요"
+            } catch (e: CancellationException) { throw e
+            } catch (e: ApiException) {
+                when (e.status) {
+                    400 -> "휴대폰 번호를 확인해 주세요"
+                    429 -> "이 방문에서는 문자를 더 보낼 수 없어요"
+                    409 -> "이미 끝난 방문이에요"
+                    else -> "문자를 보내지 못했어요. 잠시 후 다시 시도해 주세요"
+                }
+            } catch (e: Exception) { "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요." }
+            finally { inviteSending = null }
+        }
+    }
+
     fun dismissError() { error = null }
     fun dismissResult(id: String) {
         dismissedResult = id
@@ -219,6 +249,7 @@ class VehicleViewModel @JvmOverloads constructor(
     private suspend fun recoverSession(body: JsonElement): VisitSession {
         val session: VisitSession = api.write("POST", "/api/visits", body)
         driverToken = session.driverToken; passengerToken = session.passengerToken
+        invitedNumbers = emptySet(); inviteNotice = null
         prefs.edit().putString("driver", session.driverToken).putString("passenger", session.passengerToken).remove("pendingBody").commit()
         return session
     }

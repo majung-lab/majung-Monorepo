@@ -33,4 +33,6 @@ data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: Fa
 @Serializable
 data class VisitSession(val visit: VisitDto, val driverToken: String, val passengerToken: String)
 @Serializable
+data class InviteResult(val sentTo: String)
+@Serializable
 data class HistoryEntry(val visit: VisitDto, val facility: FacilityDto, val rating: PlaceRatingDto? = null)
