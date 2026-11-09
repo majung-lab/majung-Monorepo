@@ -58,6 +58,8 @@ private fun ArrivalLayout(
     onPrimary: () -> Unit,
     secondary: String,
     onSecondary: () -> Unit,
+    weather: String? = null,
+    rainy: Boolean = false,
     choices: @Composable RowScope.() -> Unit,
 ) {
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
@@ -69,6 +71,16 @@ private fun ArrivalLayout(
             Text(hint, Modifier.padding(top = 8.dp), Ink.sub, 18.sp)
             // 층이 많거나 화면이 좁아도 옆으로 밀어서 고를 수 있게
             Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), content = choices)
+            // 내리고 걸어가는 동안의 날씨. 비 소식이면 눈에 띄게
+            weather?.let {
+                Row(
+                    Modifier.padding(top = 18.dp).height(44.dp).clip(RoundedCornerShape(12.dp)).background(if (rainy) Ink.info else Ink.surface).padding(horizontal = 15.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (rainy) Icon(painterResource(R.drawable.ic_rain_small), null, Modifier.padding(end = 8.dp), tint = Color.Unspecified)
+                    Text(it, color = Ink.text, fontSize = 18.sp)
+                }
+            }
         }
         Column(Modifier.width(300.dp).padding(top = 92.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.fillMaxWidth().height(124.dp).card(Ink.surface, 16).padding(horizontal = 21.dp, vertical = 18.dp)) {
@@ -137,6 +149,8 @@ fun ParkArrivalScreen(
     lotName: String,
     onParked: (floor: String?) -> Unit = {},
     onStillLooking: () -> Unit = {},
+    weather: String? = null,
+    rainy: Boolean = false,
 ) {
     var floor by remember { mutableStateOf<String?>(null) }
     ArrivalLayout(
@@ -150,6 +164,7 @@ fun ParkArrivalScreen(
         onPrimary = { onParked(floor) },
         secondary = "아직 자리 찾는 중",
         onSecondary = onStillLooking,
+        weather = weather, rainy = rainy,
     ) {
         FLOORS.forEach { f -> Choice(f, f == floor, 84, { floor = if (floor == f) null else f }) }
     }
@@ -162,6 +177,8 @@ fun DropoffArrivalScreen(
     pointName: String,
     onDone: () -> Unit = {},
     onStillGettingOff: () -> Unit = {},
+    weather: String? = null,
+    rainy: Boolean = false,
 ) {
     ArrivalLayout(
         context = context,
@@ -174,6 +191,7 @@ fun DropoffArrivalScreen(
         onPrimary = onDone,
         secondary = "아직 내리는 중",
         onSecondary = onStillGettingOff,
+        weather = weather, rainy = rainy,
     ) {
         Row(
             Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Ink.warnLine, RoundedCornerShape(12.dp)).padding(horizontal = 15.dp),
@@ -196,6 +214,10 @@ fun PickupArrivalScreen(
     initiallyBoarded: Set<String> = emptySet(),
     onBoarded: () -> Unit = {},
     onWaiting: () -> Unit = {},
+    weather: String? = null,
+    rainy: Boolean = false,
+    /** 동승자가 고른 대기 지점 (예: "2층 가족휴게실에서 오는 중 · 4분") */
+    waitingAt: String? = null,
 ) {
     val boarded = remember { mutableStateListOf<String>().apply { addAll(initiallyBoarded) } }
     val left = family.size - boarded.size
@@ -207,13 +229,14 @@ fun PickupArrivalScreen(
         info = Info(
             "가족",
             if (left == 0) "모두 탔어요" else "${boarded.size}명 탔어요 · ${left}명 오는 중",
-            waitedMin?.let { "도착 $arrivedAt · 기다린 시간 ${it}분" } ?: "서버에 차량 도착 상태를 저장했어요",
+            waitingAt ?: waitedMin?.let { "도착 $arrivedAt · 기다린 시간 ${it}분" } ?: "서버에 차량 도착 상태를 저장했어요",
         ),
         primary = if (left == 0) "탑승 완료" else "탑승 완료 (${boarded.size}/${family.size})",
         primaryEnabled = left == 0,
         onPrimary = onBoarded,
         secondary = "아직 기다리는 중",
         onSecondary = onWaiting,
+        weather = weather, rainy = rainy,
     ) {
         family.forEach { name ->
             val on = name in boarded

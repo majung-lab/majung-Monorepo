@@ -127,21 +127,33 @@ export function weatherFromEnv(env = process.env): WeatherLookup {
   return async () => null;
 }
 
+/** 이 운전자가 지점별로 남긴 평가 평균 (1~5). 차량 앱은 좋았어요 5 · 보통 3 · 별로 1 */
+export type PastRatings = ReadonlyMap<string, number>;
+const GOOD = 4, BAD = 2;
+
 /**
- * 추천 순서. 비가 오거나 6시간 안에 올 것 같으면 지붕 있는 동선이 먼저, 그다음 걷는 시간이 짧은 순.
- * 날씨를 모르면 걷는 시간만 본다. 첫 번째가 추천.
+ * 추천 순서.
+ * 1) 비·눈이 오거나 6시간 안에 올 것 같으면 지붕 있는 동선 먼저
+ * 2) 이 운전자가 전에 좋게 평가한 곳 먼저, 별로라고 한 곳은 뒤로
+ * 3) 걷는 시간이 짧은 순
+ * 날씨·평가를 모르면 그 단계는 건너뛴다. 첫 번째가 추천.
  */
-export function rankAccessPoints(points: AccessPoint[], weather: Weather | null): RankedAccessPoint[] {
+export function rankAccessPoints(points: AccessPoint[], weather: Weather | null, ratings: PastRatings = new Map()): RankedAccessPoint[] {
   const wet = !!weather?.rainSoon;
   const walk = (p: AccessPoint) => p.walkMinutes ?? Number.MAX_SAFE_INTEGER;
-  const sorted = [...points].sort((a, b) => (wet ? Number(b.covered) - Number(a.covered) : 0) || walk(a) - walk(b) || Number(a.id) - Number(b.id));
+  const liked = (p: AccessPoint) => { const r = ratings.get(p.id); return r === undefined ? 1 : r >= GOOD ? 0 : r <= BAD ? 2 : 1; };
+  const sorted = [...points].sort((a, b) => (wet ? Number(b.covered) - Number(a.covered) : 0) || liked(a) - liked(b) || walk(a) - walk(b) || Number(a.id) - Number(b.id));
+  const shortest = Math.min(...points.map(walk));
   const word = weather?.condition === 'SNOW' || weather?.summary.includes('눈') ? '눈' : '비';
   // 걷는 시간은 화면 태그로 따로 보이므로 이유는 짧게 한 줄
   return sorted.map((p, i) => {
     let reason: string | null = null;
     if (wet && p.covered) reason = i === 0 ? `${word} 예보라 지붕 아래에서 타고 내려요` : '지붕 있는 동선이에요';
     else if (wet) reason = `지붕이 없어 ${word === '눈' ? '눈을' : '비를'} 맞을 수 있어요`;
-    else if (i === 0 && p.walkMinutes !== null) reason = '기다리는 곳에서 가장 가까워요';
+    else if (liked(p) === 0 && i === 0) reason = '지난번에 좋았던 곳이에요';
+    else if (liked(p) === 2) reason = '지난번 평가가 좋지 않았어요';
+    else if (i === 0 && p.walkMinutes !== null && p.walkMinutes === shortest) reason = '기다리는 곳에서 가장 가까워요';
+    else if (i === 0 && sorted.some((q) => liked(q) === 2)) reason = '지난번 별로였던 곳 대신 추천해요';
     return { accessPointId: p.id, recommended: i === 0, reason };
   });
 }

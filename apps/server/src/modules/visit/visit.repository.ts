@@ -121,7 +121,7 @@ export function createVisitRepository(db: Db) {
       run('INSERT INTO api_visit_state (visit_id) VALUES (?)',id);
       let selectedCandidate:number|null=null; let rank=0;
       const usable=f.accessPoints.filter(ap=>ap.allowed&&ap.kind===(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP'));
-      for(const ranked of rankAccessPoints(usable,weather)) {
+      for(const ranked of rankAccessPoints(usable,weather,pastRatings(input.driverDeviceId,Number(input.facilityId)))) {
         const ap=usable.find(p=>p.id===ranked.accessPointId)!;
         const cn=connection(Number(ap.id));
         const result=run('INSERT INTO candidate (visit_id,purpose,access_point_id,wait_spot_id,connection_id,rank,reasons_json) VALUES (?,?,?,?,?,?,?)',id,input.mode==='PARK'?'parking':'meet',Number(ap.id),cn?.wait_spot_id??null,cn?.id??null,++rank,JSON.stringify([ranked.reason??ap.description]));
@@ -235,6 +235,13 @@ export function createVisitRepository(db: Db) {
       run('INSERT INTO place_rating (visit_id,candidate_id,rating,tags_json,comment) VALUES (?,?,?,?,?)',v.id,(v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id)!,input.rating,JSON.stringify(input.tags),input.comment??null);
     });
   }
+  /** 이 운전자가 이 시설에서 지점별로 남긴 평가 평균. 다음 추천 순서에 쓴다 */
+  function pastRatings(driverDeviceId:string,facilityId:number):Map<string,number> {
+    return new Map(all<{ap:number;avg:number}>(
+      `SELECT c.access_point_id AS ap, AVG(r.rating) AS avg FROM place_rating r
+       JOIN candidate c ON c.id=r.candidate_id JOIN visit v ON v.id=r.visit_id
+       WHERE v.driver_device_id=? AND v.facility_id=? GROUP BY c.access_point_id`,driverDeviceId,facilityId).map(r=>[String(r.ap),r.avg]));
+  }
   function history(driverDeviceId:string):HistoryEntry[] {
     return all<VisitRow&{weather_json:string|null}>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId)
       .map(v=>({visit:toVisit(v),facility:visitFacility(v),rating:rating(v.id),weather:v.weather_json?JSON.parse(v.weather_json) as Weather:null}));
@@ -248,7 +255,7 @@ export function createVisitRepository(db: Db) {
     const passenger=one<{token:string}>("SELECT token FROM participant WHERE visit_id=? AND role='passenger'",v.id) ?? error(404,'VISIT_NOT_FOUND','방문을 찾을 수 없어요');
     return {visitId:v.id,passengerToken:passenger.token,facilityName:visitFacility(v).name};
   }
-  return {facilities,create,snapshot,update,propose,respond,rate,history,inviteTarget,
+  return {facilities,create,snapshot,update,propose,respond,rate,history,pastRatings,inviteTarget,
     subscribe(token:string,listener:()=>void) {
       const a=actor(token);const set=listeners.get(a.visit_id)??new Set<()=>void>();set.add(listener);listeners.set(a.visit_id,set);
       return ()=>{set.delete(listener);if(!set.size) listeners.delete(a.visit_id);};

@@ -108,7 +108,7 @@ class VehicleViewModel @JvmOverloads constructor(
         if (placeWeatherKey != key) placeWeather = null
         placeWeatherKey = key
         scope.launch {
-            val result = try { api.get<FacilityWeatherDto>("/api/facilities/$facilityId/weather?mode=${mode.name}") } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            val result = try { api.get<FacilityWeatherDto>("/api/facilities/$facilityId/weather?mode=${mode.name}&driverDeviceId=$deviceId") } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
             if (placeWeatherKey == key) placeWeather = result
         }
     }

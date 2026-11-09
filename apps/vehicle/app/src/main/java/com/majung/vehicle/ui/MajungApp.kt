@@ -109,7 +109,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
     // C04·C06에서 그 시설·모드의 날씨와 추천 순서를 받고, 머무는 동안 10분마다 갱신한다
-    val wantsWeather = screen == Screen.PLACE || screen == Screen.MOVING
+    val wantsWeather = screen == Screen.PLACE || screen == Screen.MOVING || screen == Screen.ARRIVAL
     LaunchedEffect(wantsWeather, facility?.id, selectedMode) {
         val id = facility?.id ?: return@LaunchedEffect
         while (wantsWeather) { model.loadPlaceWeather(id, selectedMode); kotlinx.coroutines.delay(10 * 60_000L) }
@@ -175,13 +175,22 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 pendingPosition = ownPending?.let { p -> facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.let { LatLng(it.lat, it.lng) } },
                 onPropose = { registered, position -> if (registered != null) model.propose(registered.id) else model.proposeLocation(position.lat, position.lng) },
                 onCancel = { ownPending?.let { model.cancelProposal(it.id) { screen = Screen.MOVING } } })
-            Screen.ARRIVAL -> when (selectedMode) {
-                VisitMode.PARK -> ParkArrivalScreen(context, point?.name.orEmpty(), onParked = { floor -> model.phase("COMPLETED", floor) { screen = Screen.REVIEW } }, onStillLooking = { screen = Screen.MOVING })
-                VisitMode.DROPOFF -> DropoffArrivalScreen(context, point?.name.orEmpty(), onDone = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onStillGettingOff = { screen = Screen.MOVING })
+            Screen.ARRIVAL -> {
+                val w = model.placeWeather?.weather
+                val arrivalWeather = w?.let { "지금 날씨 · ${it.summary}" }
+                val wet = w?.rainSoon == true
+                when (selectedMode) {
+                VisitMode.PARK -> ParkArrivalScreen(context, point?.name.orEmpty(), onParked = { floor -> model.phase("COMPLETED", floor) { screen = Screen.REVIEW } }, onStillLooking = { screen = Screen.MOVING },
+                    weather = arrivalWeather, rainy = wet)
+                VisitMode.DROPOFF -> DropoffArrivalScreen(context, point?.name.orEmpty(), onDone = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onStillGettingOff = { screen = Screen.MOVING },
+                    weather = arrivalWeather, rainy = wet)
                 VisitMode.PICKUP -> PickupArrivalScreen(context, point?.name.orEmpty(), listOf("동승자"), formatTime(visit?.updatedAt), null,
-                    onBoarded = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onWaiting = { screen = Screen.MOVING })
+                    onBoarded = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onWaiting = { screen = Screen.MOVING },
+                    weather = arrivalWeather, rainy = wet,
+                    waitingAt = snapshot?.passengerWaitSpot?.let { "${it.name}에서 오는 중 · ${it.walkMinutes}분" })
+                }
             }
-            Screen.REVIEW -> ReviewScreen(context, point?.name.orEmpty(), "방문 완료 · ${formatTime(visit?.completedAt ?: visit?.updatedAt)}", onDone = { rating, tags ->
+            Screen.REVIEW -> ReviewScreen(context, point?.name.orEmpty(), listOfNotNull("방문 완료 · ${formatTime(visit?.completedAt ?: visit?.updatedAt)}", model.placeWeather?.weather?.let(::weatherWord)).joinToString(" · "), onDone = { rating, tags ->
                 model.rate(when (rating) { Rating.GOOD -> 5; Rating.OK -> 3; Rating.BAD -> 1 }, tags, home)
             }, onSkip = ::finish)
             Screen.HISTORY -> HistoryScreen(records = model.history.map { entry ->
