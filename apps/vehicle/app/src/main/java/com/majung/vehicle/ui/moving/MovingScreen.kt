@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,9 @@ fun MovingScreen(
     /** 내장 내비 화면으로 넘어가기 (돌아올 때는 알림이나 독의 앱 버튼) */
     onShowNavi: (() -> Unit)? = null,
     onCancelVisit: (() -> Unit)? = null,
+    /** 도착지 날씨 한 줄. null이면 숨김 */
+    weather: String? = null,
+    rainy: Boolean = false,
 ) {
     Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
@@ -81,13 +85,19 @@ fun MovingScreen(
                 )
                 Text(etaMin?.let { "· 약 ${it}분" } ?: "· ETA 정보 없음", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
             }
+            weather?.let {
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (rainy) Icon(painterResource(R.drawable.ic_rain_small), null, Modifier.padding(end = 8.dp), tint = Color.Unspecified)
+                    Text(it, color = if (rainy) Ink.text else Ink.sub, fontSize = 18.sp)
+                }
+            }
         }
         Column(Modifier.width(300.dp).padding(top = 54.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             family?.let {
                 Column(Modifier.fillMaxWidth().height(134.dp).card(Ink.surface, 16).padding(horizontal = 21.dp, vertical = 20.dp)) {
                     Text("가족", color = Ink.sub, fontSize = 14.sp)
                     Text(it.label, Modifier.padding(top = 8.dp), Ink.text, 22.sp, fontWeight = FontWeight.Medium)
-                    Text(it.detail, Modifier.padding(top = 6.dp), Ink.sub, 14.sp)
+                    Text(it.detail, Modifier.padding(top = 6.dp), Ink.sub, 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box(

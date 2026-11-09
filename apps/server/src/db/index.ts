@@ -24,6 +24,9 @@ export function openDb(path: string): Db {
         db.exec(sql('./majung-db/05_seed_scenarios.sql'));
       }
       db.exec(sql('./schema.sql'));
+      // 예전 DB에는 대기 지점 칸이 없으므로 추가한다 (CREATE IF NOT EXISTS는 칸을 늘리지 않는다)
+      const state = db.prepare('PRAGMA table_info(api_visit_state)').all() as { name: string }[];
+      if (!state.some((column) => column.name === 'passenger_wait_spot_id')) db.exec('ALTER TABLE api_visit_state ADD COLUMN passenger_wait_spot_id INTEGER REFERENCES wait_spot(id)');
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     return db;

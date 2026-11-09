@@ -19,7 +19,7 @@ const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { h
 export default function VisitPage() {
   const navigate = useNavigate();
   const { snapshot, token, busy, position: me, positionError, mutate } = useVisit();
-  const { visit, facility, vehicle, proposals } = snapshot;
+  const { visit, facility, vehicle, proposals, passengerWaitSpot } = snapshot;
   const now = useNow();
   const meet = facility.accessPoints.find((p) => p.id === visit.confirmedAccessPointId)!;
   const meetPos = pointPosition(meet);
@@ -113,6 +113,19 @@ export default function VisitPage() {
             <img src={swap} alt="" width={14} height={14} />{mine ? '응답 대기 중' : '위치 바꾸기'}
           </button>
         </div>
+        {!arrived && meet.waitSpots.length > 0 && <div className="wait-spots">
+          <p className="place-label">지금 어디서 기다리세요? · 운전자 화면에 보여요</p>
+          <div className="wait-spot-list">
+            {meet.waitSpots.map((w) => {
+              const chosen = passengerWaitSpot?.id === w.id;
+              return <button key={w.id} aria-pressed={chosen} disabled={busy}
+                onClick={() => void mutate((s) => api.waitSpot(token, s.visit.version, chosen ? null : w.id))}>
+                <span className="wait-spot-name">{w.name}</span>
+                <span className="wait-spot-meta">차까지 걸어서 {w.walkMinutes}분{w.covered ? ' · 지붕 있음' : ''}</span>
+              </button>;
+            })}
+          </div>
+        </div>}
         <p className="location-note" role="status">{positionError || (me ? '내 실제 위치를 차량에 공유하고 있어요.' : '위치 권한을 허용하면 차량에 내 위치를 공유해요.')}{stale ? ' 차량 위치가 1분 이상 갱신되지 않았어요.' : !car ? ' 차량 위치는 아직 전송되지 않았어요.' : ''}</p>
         {mine && <button className="btn-cancel" onClick={() => navigate('move')}>보낸 제안 확인</button>}
         <button className="btn-primary" disabled={busy || readiness === 'HEADING_OUT'} onClick={() => void mutate((s) => api.readiness(token, s.visit.version, readiness === 'READY' ? 'HEADING_OUT' : 'READY'))}>

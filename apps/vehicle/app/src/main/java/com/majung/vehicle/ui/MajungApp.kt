@@ -108,9 +108,11 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
         }
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
-    // C04에 들어올 때마다 그 시설·모드의 날씨와 추천 순서를 새로 받는다
-    LaunchedEffect(screen == Screen.PLACE, facility?.id, selectedMode) {
-        if (screen == Screen.PLACE) facility?.id?.let { model.loadPlaceWeather(it, selectedMode) }
+    // C04·C06에서 그 시설·모드의 날씨와 추천 순서를 받고, 머무는 동안 10분마다 갱신한다
+    val wantsWeather = screen == Screen.PLACE || screen == Screen.MOVING
+    LaunchedEffect(wantsWeather, facility?.id, selectedMode) {
+        val id = facility?.id ?: return@LaunchedEffect
+        while (wantsWeather) { model.loadPlaceWeather(id, selectedMode); kotlinx.coroutines.delay(10 * 60_000L) }
     }
     LaunchedEffect(ownPending?.id, ownResult?.id) {
         if (ownPending == null && ownResult != null && screen == Screen.MOVE_PIN) screen = Screen.MOVING
@@ -152,7 +154,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 etaMin = snapshot?.vehicle?.etaSec?.let { ceil(it / 60.0).toInt() },
                 family = if (selectedMode != VisitMode.PICKUP || driving) null else FamilyStatus(when (visit?.passengerReadiness) {
                     "READY" -> "준비됐어요"; "HEADING_OUT" -> "나오는 중이에요"; "SEEN" -> "링크를 열었어요"; else -> "아직 링크를 안 열었어요"
-                }, "동승자 기기에서 보낸 상태"),
+                }, snapshot?.passengerWaitSpot?.let { "${it.name}에서 대기 · 걸어서 ${it.walkMinutes}분" } ?: "동승자 기기에서 보낸 상태"),
+                weather = model.placeWeather?.weather?.let { "도착지 날씨 · ${it.summary}" }, rainy = model.placeWeather?.weather?.rainSoon == true,
                 heading = if (visit?.phase == "ARRIVED") "목적지에 도착했어요" else when (selectedMode) { VisitMode.PICKUP -> "픽업 장소로 가는 중"; VisitMode.DROPOFF -> "내릴 곳으로 가는 중"; VisitMode.PARK -> "목적지로 가는 중" },
                 onArrived = { if (visit?.phase == "ARRIVED") screen = Screen.ARRIVAL else model.phase("ARRIVED") { screen = Screen.ARRIVAL } },
                 onChangePlace = if (driving || mapPoints.size < 2) null else ({ screen = if (selectedMode == VisitMode.PICKUP) Screen.MOVE_PIN else Screen.PLACE }),
@@ -185,7 +188,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 val p = entry.facility.accessPoints.firstOrNull { it.id == entry.visit.confirmedAccessPointId }
                 VisitRecord(entry.facility.name, formatTime(entry.visit.completedAt ?: entry.visit.updatedAt), VisitMode.valueOf(entry.visit.mode),
                     "${p?.name.orEmpty()} · ${entry.visit.parkingFloor.orEmpty()} · ${phaseLabel(entry.visit.phase)}",
-                    entry.rating?.let { "평가 ${it.rating}/5 · ${it.tags.joinToString()}" } ?: "평가 없음",
+                    listOfNotNull(entry.weather?.let(::weatherWord), entry.rating?.let { "평가 ${it.rating}/5 · ${it.tags.joinToString()}" } ?: "평가 없음").joinToString(" · "),
                     facilityId = entry.facility.id, pointId = entry.visit.confirmedAccessPointId)
             }, onBack = home, onRevisit = ::revisit)
         }
@@ -235,4 +238,10 @@ private fun rankedPoints(points: List<AccessPointDto>, ranking: List<RankedAcces
         val tags = listOfNotNull(if (p.covered) "지붕 있음" else "지붕 없음", p.walkMinutes?.let { "걸어서 ${it}분" })
         AccessPoint(p.name, r?.reason ?: p.description, tags, recommended = r?.recommended == true, id = p.id)
     }
+}
+
+/** 기록 한 줄에 쓰는 짧은 날씨: 비 · 14° */
+private fun weatherWord(w: com.majung.vehicle.data.remote.dto.WeatherDto): String {
+    val word = when (w.condition) { "RAIN" -> "비"; "SNOW" -> "눈"; else -> if (w.rainSoon) "비 예보" else if (w.condition == "CLOUDY") "흐림" else "맑음" }
+    return w.tempC?.let { "$word · $it°" } ?: word
 }

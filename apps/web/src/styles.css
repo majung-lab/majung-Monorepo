@@ -431,3 +431,12 @@ button:disabled { cursor: default; opacity: .65; }
 .weather-note { margin: -6px 0 12px; font-size: 14px; color: #495057; }
 .weather-note.wet { padding: 8px 12px; border-radius: 10px; background: #e7f5ff; color: #1864ab; font-weight: 600; }
 .weather-note span { font-weight: 400; }
+
+/* 동승자가 고르는 대기 지점. 고른 곳은 강조, 다시 누르면 해제 */
+.wait-spots { margin-top: 14px; }
+.wait-spot-list { display: flex; gap: 8px; margin-top: 6px; overflow-x: auto; }
+.wait-spot-list button { flex: 1 0 auto; min-width: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.wait-spot-list button[aria-pressed='true'] { border: 2px solid var(--accent); background: #fff7e6; padding: 9px 11px; }
+.wait-spot-list button:disabled { opacity: 0.6; }
+.wait-spot-name { font-size: 15px; font-weight: 600; }
+.wait-spot-meta { font-size: 12px; color: var(--ink-sub); }

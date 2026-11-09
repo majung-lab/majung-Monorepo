@@ -239,7 +239,7 @@ components:
         completedAt: { type: [string, 'null'], format: date-time }
     AccessPoint:
       type: object
-      required: [id, name, lat, lng, description, kind, allowed, waitSpot, walkMinutes, covered]
+      required: [id, name, lat, lng, description, kind, allowed, waitSpot, walkMinutes, covered, waitSpots]
       properties:
         id: { type: string }
         name: { type: string }
@@ -256,6 +256,20 @@ components:
             floor: { type: [string, 'null'] }
             description: { type: string }
         walkMinutes: { type: [integer, 'null'] }
+        covered: { type: boolean }
+        waitSpots:
+          type: array
+          description: Waiting spots connected to this access point, nearest first.
+          items: { $ref: '#/components/schemas/WaitSpotOption' }
+    WaitSpotOption:
+      type: object
+      required: [id, name, floor, description, walkMinutes, covered]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        floor: { type: [string, 'null'] }
+        description: { type: string }
+        walkMinutes: { type: integer, minimum: 0 }
         covered: { type: boolean }
     Weather:
       type: object
@@ -320,7 +334,7 @@ components:
         comment: { type: [string, 'null'] }
     VisitSnapshot:
       type: object
-      required: [visit, role, facility, proposals, vehicle, passengerLocation, rating]
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, rating]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         role: *role
@@ -344,6 +358,11 @@ components:
             lat: *lat
             lng: *lng
             recordedAt: { type: string, format: date-time }
+        passengerWaitSpot:
+          description: Where the passenger said they are waiting. Cleared when the meeting point changes and no route remains.
+          oneOf:
+            - { $ref: '#/components/schemas/WaitSpotOption' }
+            - { type: 'null' }
         rating:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
@@ -357,13 +376,18 @@ components:
         passengerToken: { type: string }
     HistoryEntry:
       type: object
-      required: [visit, facility, rating]
+      required: [visit, facility, rating, weather]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         facility: { $ref: '#/components/schemas/Facility' }
         rating:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
+            - { type: 'null' }
+        weather:
+          description: Weather snapshot taken when the visit was created.
+          oneOf:
+            - { $ref: '#/components/schemas/Weather' }
             - { type: 'null' }
     CreateInviteRequest:
       type: object
@@ -406,6 +430,10 @@ components:
         phase: *phase
         passengerReadiness: *readiness
         parkingFloor: { type: [string, 'null'], minLength: 1, maxLength: 32 }
+        passengerWaitSpotId:
+          type: [string, 'null']
+          pattern: '^[1-9][0-9]*$'
+          description: Passenger-only. One of the confirmed access point's waitSpots; null clears it.
         passengerLocation:
           type: [object, 'null']
           additionalProperties: false

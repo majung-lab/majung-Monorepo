@@ -44,7 +44,7 @@ test('지금 비가 오거나, 맑으면 그에 맞게', () => {
 });
 
 const point = (id: string, walkMinutes: number | null, covered: boolean): AccessPoint =>
-  ({ id, name: id, lat: 0, lng: 0, description: '', kind: 'PICKUP', allowed: true, waitSpot: null, walkMinutes, covered });
+  ({ id, name: id, lat: 0, lng: 0, description: '', kind: 'PICKUP', allowed: true, waitSpot: null, walkMinutes, covered, waitSpots: [] });
 
 test('비가 오면 지붕 있는 곳이 먼저, 아니면 가까운 곳이 먼저', async () => {
   const points = [point('1', 1, false), point('2', 3, true)];

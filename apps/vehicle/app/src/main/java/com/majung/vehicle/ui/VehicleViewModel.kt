@@ -104,8 +104,9 @@ class VehicleViewModel @JvmOverloads constructor(
     /** 날씨는 추천에만 쓰므로 실패해도 오류를 띄우지 않는다 */
     fun loadPlaceWeather(facilityId: String, mode: VisitMode) {
         val key = "$facilityId/${mode.name}"
+        // 같은 시설을 다시 받을 때(10분마다 갱신)는 이전 값을 그대로 보여 준다
+        if (placeWeatherKey != key) placeWeather = null
         placeWeatherKey = key
-        placeWeather = null
         scope.launch {
             val result = try { api.get<FacilityWeatherDto>("/api/facilities/$facilityId/weather?mode=${mode.name}") } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
             if (placeWeatherKey == key) placeWeather = result

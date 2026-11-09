@@ -36,10 +36,13 @@ data class VehicleStatusDto(val lat: Double? = null, val lng: Double? = null, va
 @Serializable
 data class PlaceRatingDto(val rating: Int, val tags: List<String>, val comment: String? = null)
 @Serializable
-data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null)
+data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null, val passengerWaitSpot: WaitSpotDto? = null)
+/** 동승자가 '지금 여기서 기다려요'로 고른 곳 */
+@Serializable
+data class WaitSpotDto(val id: String, val name: String, val floor: String? = null, val description: String = "", val walkMinutes: Int, val covered: Boolean = false)
 @Serializable
 data class VisitSession(val visit: VisitDto, val driverToken: String, val passengerToken: String)
 @Serializable
 data class InviteResult(val sentTo: String)
 @Serializable
-data class HistoryEntry(val visit: VisitDto, val facility: FacilityDto, val rating: PlaceRatingDto? = null)
+data class HistoryEntry(val visit: VisitDto, val facility: FacilityDto, val rating: PlaceRatingDto? = null, val weather: WeatherDto? = null)
