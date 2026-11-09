@@ -21,7 +21,14 @@ data class VisitDto(
 @Serializable
 data class FacilityDto(val id: String, val name: String, val address: String, val lat: Double, val lng: Double, val accessPoints: List<AccessPointDto>, val dataStatus: String = "EXAMPLE")
 @Serializable
-data class AccessPointDto(val id: String, val name: String, val lat: Double, val lng: Double, val description: String, val kind: String, val allowed: Boolean)
+data class AccessPointDto(val id: String, val name: String, val lat: Double, val lng: Double, val description: String, val kind: String, val allowed: Boolean, val walkMinutes: Int? = null, val covered: Boolean = false)
+@Serializable
+data class WeatherDto(val condition: String, val tempC: Int? = null, val rainChance: Int? = null, val rainSoon: Boolean, val summary: String, val checkedAt: String, val source: String)
+@Serializable
+data class RankedAccessPointDto(val accessPointId: String, val recommended: Boolean, val reason: String? = null)
+/** C04 시설 날씨와 추천 순서. weather가 null이면 날씨 없이 걷는 시간 순 */
+@Serializable
+data class FacilityWeatherDto(val weather: WeatherDto? = null, val ranking: List<RankedAccessPointDto>)
 @Serializable
 data class MeetingProposalDto(val id: String, val visitId: String, val proposedBy: String, val accessPointId: String, val fromAccessPointId: String, val baseVersion: Int, val status: String, val reason: String? = null, val createdAt: String, val expiresAt: String)
 @Serializable

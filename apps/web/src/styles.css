@@ -426,3 +426,8 @@ button {
 .point-options button { padding: 10px 12px; }
 .point-options button[aria-pressed='true'] { border: 2px solid var(--accent-ink); }
 button:disabled { cursor: default; opacity: .65; }
+
+/* 만날 곳 날씨 한 줄. 비 소식이면 눈에 띄게 */
+.weather-note { margin: -6px 0 12px; font-size: 14px; color: #495057; }
+.weather-note.wet { padding: 8px 12px; border-radius: 10px; background: #e7f5ff; color: #1864ab; font-weight: 600; }
+.weather-note span { font-weight: 400; }

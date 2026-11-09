@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { CreateProposalRequest, CreateVisitRequest, MutationRequest, RateVisitRequest, RespondProposalRequest, UpdateVisitRequest } from '@majung/shared';
 import type { VisitRepository } from './visit.repository.ts';
 import type { PlaceNameLookup } from './place-name.ts';
+import type { WeatherLookup } from '../weather/weather.ts';
 
 const text = { type:'string', minLength:1, maxLength:128 };
 const id = { type:'string', pattern:'^[1-9][0-9]*$', maxLength:16 };
@@ -14,9 +15,13 @@ const nullable = (schema:object) => ({anyOf:[schema,{type:'null'}]});
 type TokenParams = {token:string};
 type ProposalParams = TokenParams & {id:string};
 
-export async function visitRoutes(app: FastifyInstance, { visits, placeName }: { visits: VisitRepository; placeName: PlaceNameLookup }) {
+export async function visitRoutes(app: FastifyInstance, { visits, placeName, weather }: { visits: VisitRepository; placeName: PlaceNameLookup; weather: WeatherLookup }) {
   app.get('/facilities',async()=>visits.facilities());
-  app.post<{Body:CreateVisitRequest}>('/visits',{schema:{body:object({requestId:text,facilityId:id,mode:{enum:['PICKUP','PARK','DROPOFF']},accessPointId:id,driverDeviceId:{type:'string',minLength:24,maxLength:128}},['requestId','facilityId','mode','accessPointId','driverDeviceId'])}},async(req,reply)=>reply.code(201).send(visits.create(req.body)));
+  app.post<{Body:CreateVisitRequest}>('/visits',{schema:{body:object({requestId:text,facilityId:id,mode:{enum:['PICKUP','PARK','DROPOFF']},accessPointId:id,driverDeviceId:{type:'string',minLength:24,maxLength:128}},['requestId','facilityId','mode','accessPointId','driverDeviceId'])}},async(req,reply)=>{
+    // 날씨는 후보 순위와 기록에만 쓰므로, 못 받아도 방문은 만든다
+    const f=visits.facilities().find(x=>x.id===req.body.facilityId);
+    return reply.code(201).send(visits.create(req.body,f?await weather(f.lat,f.lng):null));
+  });
   app.get<{Params:TokenParams}>('/visits/:token',async req=>visits.snapshot(req.params.token));
   app.patch<{Params:TokenParams;Body:UpdateVisitRequest}>('/visits/:token',{schema:{body:{...mutation({
     accessPointId:id,phase:{enum:['PREPARING','MOVING','ARRIVED','COMPLETED','CANCELLED']},passengerReadiness:{enum:['UNSEEN','SEEN','READY','HEADING_OUT']},

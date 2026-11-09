@@ -1,5 +1,6 @@
 // W01 방문 카드 · W05 변경 결과 알림
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Weather } from '@majung/shared';
 import { useNavigate } from 'react-router-dom';
 import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
@@ -56,6 +57,15 @@ export default function VisitPage() {
     ...(me ? [{ pos: me, kind: 'me' as const }] : []),
   ], [meet.lat, meet.lng, proposed?.id, vehicle?.lat, vehicle?.lng, me]);
   const readiness = visit.passengerReadiness;
+  // 만날 곳 날씨: 10분마다 다시 받는다. 못 받으면 줄을 숨긴다
+  const [weather, setWeather] = useState<Weather | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void api.weather(facility.id).then((w) => { if (live) setWeather(w?.weather ?? null); });
+    load();
+    const timer = setInterval(load, 10 * 60_000);
+    return () => { live = false; clearInterval(timer); };
+  }, [facility.id]);
 
   return (
     <main className="screen">
@@ -81,6 +91,10 @@ export default function VisitPage() {
       </KakaoMap>
       <section className="sheet">
         <p className="data-notice">{facility.name} · 예시 시설·승하차 지점 데이터</p>
+        {weather && <p className={`weather-note${weather.rainSoon ? ' wet' : ''}`} role="note">
+          {weather.rainSoon ? '☂ ' : ''}{weather.summary}
+          {weather.rainSoon && !arrived && <span>{meet.covered ? ' · 만날 곳은 지붕이 있어요' : ' · 만날 곳에 지붕이 없어요. 우산을 챙겨 주세요'}</span>}
+        </p>}
         <div className="eta">
           <div>
             <p className="sub">{arrived ? '운전자가 도착을 확인했어요' : visit.phase === 'PREPARING' ? '운전자가 출발을 준비하고 있어요' : '차가 오고 있어요'}</p>

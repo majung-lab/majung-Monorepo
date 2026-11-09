@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.majung.vehicle.R
 import com.majung.vehicle.domain.model.AccessPoint
 import com.majung.vehicle.domain.model.SAMPLE_ACCESS_POINTS
+import com.majung.vehicle.domain.model.SAMPLE_WEATHER
 import com.majung.vehicle.domain.model.VisitMode
 import com.majung.vehicle.ui.theme.BackHeader
 import com.majung.vehicle.ui.theme.Ink
@@ -47,6 +48,10 @@ fun PlaceScreen(
     mode: VisitMode,
     onBack: () -> Unit = {},
     points: List<AccessPoint> = SAMPLE_ACCESS_POINTS,
+    /** 시설 날씨 한 줄 (예: "15시부터 비 · 강수확률 70%"). null이면 날씨 대신 '예시 시설 데이터' */
+    weather: String? = SAMPLE_WEATHER,
+    /** 비·눈이 오거나 곧 옴 → 비 아이콘 */
+    rainy: Boolean = true,
     onConfirm: (AccessPoint) -> Unit = {},
 ) {
     var selected by remember(points) { mutableStateOf(points.firstOrNull { it.recommended } ?: points.firstOrNull()) }
@@ -63,8 +68,8 @@ fun PlaceScreen(
                 Modifier.height(40.dp).clip(RoundedCornerShape(12.dp)).background(Ink.info).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_rain), null, tint = Color.Unspecified)
-                Text("예시 시설 데이터", Modifier.padding(start = 10.dp), Ink.text, 16.sp)
+                if (weather != null && rainy) Icon(painterResource(R.drawable.ic_rain), null, Modifier.padding(end = 10.dp), tint = Color.Unspecified)
+                Text(weather ?: "예시 시설 데이터", color = Ink.text, fontSize = 16.sp)
             }
         }
         Row(Modifier.padding(top = 78.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {

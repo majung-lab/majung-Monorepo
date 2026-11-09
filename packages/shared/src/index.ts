@@ -30,6 +30,30 @@ export interface AccessPoint {
   walkMinutes: number | null;
   covered: boolean;
 }
+/** 시설 위치의 앞으로 몇 시간 날씨. source DEMO = 키 없이 시연용 */
+export interface Weather {
+  condition: 'CLEAR' | 'CLOUDY' | 'RAIN' | 'SNOW';
+  tempC: number | null;
+  rainChance: number | null;
+  /** 지금 비·눈이 오거나 6시간 안에 올 것 같음 → 지붕 있는 곳을 먼저 추천 */
+  rainSoon: boolean;
+  /** 화면에 그대로 띄우는 한 줄. 예: "15시부터 비 · 강수확률 70%" */
+  summary: string;
+  checkedAt: string;
+  source: 'KMA' | 'DEMO';
+}
+export interface RankedAccessPoint {
+  accessPointId: string;
+  recommended: boolean;
+  /** 추천·주의 이유 한 줄. null이면 지점 설명을 그대로 쓴다 */
+  reason: string | null;
+}
+export interface FacilityWeather {
+  /** 날씨를 못 받으면 null (키 없음, 기상청 응답 실패) */
+  weather: Weather | null;
+  /** 요청한 모드에서 쓸 수 있는 지점만, 추천 순서대로 */
+  ranking: RankedAccessPoint[];
+}
 export interface Facility {
   id: string;
   name: string;

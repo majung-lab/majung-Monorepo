@@ -31,6 +31,23 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Facility' }
+  /api/facilities/{id}/weather:
+    get:
+      operationId: getFacilityWeather
+      description: >
+        Weather at the facility for the next few hours (KMA short-term forecast) and the usable access points
+        for the mode in recommended order. When rain or snow is expected within 6 hours, covered routes come
+        first; otherwise the shortest walk. weather is null when the forecast is unavailable.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[1-9][0-9]*$' } }
+        - { name: mode, in: query, required: false, schema: { type: string, enum: [PICKUP, PARK, DROPOFF] } }
+      responses:
+        '200':
+          description: Weather and ranking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FacilityWeather' }
+        default: { $ref: '#/components/responses/Error' }
   /api/visits:
     post:
       operationId: createVisit
@@ -217,6 +234,33 @@ components:
             description: { type: string }
         walkMinutes: { type: [integer, 'null'] }
         covered: { type: boolean }
+    Weather:
+      type: object
+      required: [condition, tempC, rainChance, rainSoon, summary, checkedAt, source]
+      properties:
+        condition: { type: string, enum: [CLEAR, CLOUDY, RAIN, SNOW] }
+        tempC: { type: [integer, 'null'] }
+        rainChance: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        rainSoon: { type: boolean, description: Raining now or expected within 6 hours. }
+        summary: { type: string, description: 'One display line, e.g. "15시부터 비 · 강수확률 70%".' }
+        checkedAt: { type: string, format: date-time }
+        source: { type: string, enum: [KMA, DEMO] }
+    RankedAccessPoint:
+      type: object
+      required: [accessPointId, recommended, reason]
+      properties:
+        accessPointId: { type: string }
+        recommended: { type: boolean }
+        reason: { type: [string, 'null'] }
+    FacilityWeather:
+      type: object
+      required: [weather, ranking]
+      properties:
+        weather:
+          oneOf: [{ $ref: '#/components/schemas/Weather' }, { type: 'null' }]
+        ranking:
+          type: array
+          items: { $ref: '#/components/schemas/RankedAccessPoint' }
     Facility:
       type: object
       required: [id, name, address, lat, lng, accessPoints, dataStatus]

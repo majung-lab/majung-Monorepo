@@ -42,6 +42,9 @@ class VehicleViewModel @JvmOverloads constructor(
     var dismissedResult by mutableStateOf(prefs.getString("dismissedResult", null)); private set
     /** 이번 실행에서 내비에 넣은 결과. null이면 서버에 남은 마지막 결과를 쓴다 */
     var naviStatus by mutableStateOf<NaviStatus?>(null); private set
+    /** C04에서 보는 시설 날씨와 추천 순서. 못 받으면 null이고 지점은 서버 순서 그대로 */
+    var placeWeather by mutableStateOf<FacilityWeatherDto?>(null); private set
+    private var placeWeatherKey: String? = null
 
     init {
         navi.watchArrival(::onNaviArrived)
@@ -66,6 +69,17 @@ class VehicleViewModel @JvmOverloads constructor(
         history = api.get<List<HistoryEntry>>("/api/history?driverDeviceId=$deviceId").filter { it.visit.phase == "COMPLETED" }
         if (driverToken == null) prefs.getString("pendingBody", null)?.let { recoverSession(Json.parseToJsonElement(it)) }
         refreshVisit()
+    }
+
+    /** 날씨는 추천에만 쓰므로 실패해도 오류를 띄우지 않는다 */
+    fun loadPlaceWeather(facilityId: String, mode: VisitMode) {
+        val key = "$facilityId/${mode.name}"
+        placeWeatherKey = key
+        placeWeather = null
+        scope.launch {
+            val result = try { api.get<FacilityWeatherDto>("/api/facilities/$facilityId/weather?mode=${mode.name}") } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            if (placeWeatherKey == key) placeWeather = result
+        }
     }
 
     private suspend fun refreshVisit() {

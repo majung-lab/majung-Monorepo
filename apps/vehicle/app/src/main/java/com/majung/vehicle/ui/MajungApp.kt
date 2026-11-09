@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.majung.vehicle.BuildConfig
 import com.majung.vehicle.core.uxrestriction.UxRestrictionWatcher
+import com.majung.vehicle.data.remote.dto.AccessPointDto
+import com.majung.vehicle.data.remote.dto.RankedAccessPointDto
 import com.majung.vehicle.domain.model.*
 import com.majung.vehicle.ui.arrival.*
 import com.majung.vehicle.ui.destination.DestinationScreen
@@ -105,6 +107,10 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
         }
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
+    // C04에 들어올 때마다 그 시설·모드의 날씨와 추천 순서를 새로 받는다
+    LaunchedEffect(screen == Screen.PLACE, facility?.id, selectedMode) {
+        if (screen == Screen.PLACE) facility?.id?.let { model.loadPlaceWeather(it, selectedMode) }
+    }
     LaunchedEffect(ownPending?.id, ownResult?.id) {
         if (ownPending == null && ownResult != null && screen == Screen.MOVE_PIN) screen = Screen.MOVING
     }
@@ -125,8 +131,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             Screen.DESTINATION -> DestinationScreen(onBack = home, places = model.facilities.map { Place(it.name, it.address, id = it.id) }, onSelect = { facilityId = it.id; screen = Screen.MODE })
             Screen.MODE -> ModeScreen(facility?.name.orEmpty(), onBack = { screen = Screen.DESTINATION }) { mode = it; screen = Screen.PLACE }
             Screen.PLACE -> PlaceScreen(facility?.name.orEmpty(), selectedMode, onBack = { screen = if (visit == null) Screen.MODE else Screen.MOVING },
-                points = facility?.accessPoints.orEmpty().filter { it.allowed && if (selectedMode == VisitMode.PARK) it.kind == "PARKING_ENTRANCE" else it.kind == "PICKUP" }
-                    .map { AccessPoint(it.name, it.description, listOf("예시 데이터"), id = it.id) }) { selected ->
+                weather = model.placeWeather?.weather?.summary, rainy = model.placeWeather?.weather?.rainSoon == true,
+                points = rankedPoints(facility?.accessPoints.orEmpty().filter { it.allowed && if (selectedMode == VisitMode.PARK) it.kind == "PARKING_ENTRANCE" else it.kind == "PICKUP" }, model.placeWeather?.ranking)) { selected ->
                 if (visit != null) model.changePoint(selected.id) { screen = Screen.MOVING }
                 else facility?.let { model.create(it.id, mode, selected.id) {
                     if (mode == VisitMode.PICKUP) screen = Screen.INVITE
@@ -214,4 +220,15 @@ private fun formatTime(value: String?): String = try {
 } catch (_: Exception) { "-" }
 private fun phaseLabel(phase: String): String = when (phase) {
     "COMPLETED" -> "완료"; "CANCELLED" -> "취소"; "ARRIVED" -> "도착"; "MOVING" -> "이동 중"; else -> "준비 중"
+}
+
+/** 서버 추천 순서대로 카드를 만든다. 날씨·추천을 못 받으면 서버가 준 순서 그대로, 추천 표시 없이 */
+private fun rankedPoints(points: List<AccessPointDto>, ranking: List<RankedAccessPointDto>?): List<AccessPoint> {
+    val byId = ranking?.associateBy { it.accessPointId }.orEmpty()
+    val ordered = if (ranking == null) points else ranking.mapNotNull { r -> points.find { it.id == r.accessPointId } } + points.filter { it.id !in byId }
+    return ordered.map { p ->
+        val r = byId[p.id]
+        val tags = listOfNotNull(if (p.covered) "지붕 있음" else "지붕 없음", p.walkMinutes?.let { "걸어서 ${it}분" })
+        AccessPoint(p.name, r?.reason ?: p.description, tags, recommended = r?.recommended == true, id = p.id)
+    }
 }

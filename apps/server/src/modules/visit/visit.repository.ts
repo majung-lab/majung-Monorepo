@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { AccessPoint, CreateProposalRequest, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
+import type { AccessPoint, CreateProposalRequest, Weather, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
 import type { Db } from '../../db/index.ts';
 import { HttpError } from '../../common/errors.ts';
+import { rankAccessPoints } from '../weather/weather.ts';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
@@ -99,17 +100,20 @@ export function createVisitRepository(db: Db) {
     } catch(e) {db.exec('ROLLBACK');throw e;}
   }
   function publish(id:string) {listeners.get(id)?.forEach(fn=>fn());}
-  function create(input:CreateVisitRequest):VisitSession {
+  /** weather: 만들 때의 날씨. 후보 순위(rank)와 방문 기록(weather_json)에 남긴다 */
+  function create(input:CreateVisitRequest,weather:Weather|null=null):VisitSession {
     return request(input.driverDeviceId,'create',input,()=>{
       const f=facility(Number(input.facilityId)); const selected=f.accessPoints.find(ap=>ap.id===input.accessPointId&&ap.allowed);
       if(!selected || selected.kind!==(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP')) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
       const id=randomUUID(); const now=iso(); const expires=new Date(Date.now()+LINK_TTL_MS).toISOString();
-      run('INSERT INTO visit (id,facility_id,mode,driver_device_id,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',id,Number(input.facilityId),modeToDb[input.mode],input.driverDeviceId,expires,now,now);
+      run('INSERT INTO visit (id,facility_id,mode,driver_device_id,weather_json,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',id,Number(input.facilityId),modeToDb[input.mode],input.driverDeviceId,weather?JSON.stringify(weather):null,expires,now,now);
       run('INSERT INTO api_visit_state (visit_id) VALUES (?)',id);
       let selectedCandidate:number|null=null; let rank=0;
-      for(const ap of f.accessPoints.filter(ap=>ap.allowed&&ap.kind===(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP'))) {
+      const usable=f.accessPoints.filter(ap=>ap.allowed&&ap.kind===(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP'));
+      for(const ranked of rankAccessPoints(usable,weather)) {
+        const ap=usable.find(p=>p.id===ranked.accessPointId)!;
         const cn=connection(Number(ap.id));
-        const result=run('INSERT INTO candidate (visit_id,purpose,access_point_id,wait_spot_id,connection_id,rank,reasons_json) VALUES (?,?,?,?,?,?,?)',id,input.mode==='PARK'?'parking':'meet',Number(ap.id),cn?.wait_spot_id??null,cn?.id??null,++rank,JSON.stringify([ap.description]));
+        const result=run('INSERT INTO candidate (visit_id,purpose,access_point_id,wait_spot_id,connection_id,rank,reasons_json) VALUES (?,?,?,?,?,?,?)',id,input.mode==='PARK'?'parking':'meet',Number(ap.id),cn?.wait_spot_id??null,cn?.id??null,++rank,JSON.stringify([ranked.reason??ap.description]));
         if(ap.id===input.accessPointId) selectedCandidate=Number(result.lastInsertRowid);
       }
       run(`UPDATE visit SET ${input.mode==='PARK'?'parking_candidate_id':'confirmed_candidate_id'}=? WHERE id=? AND version=1`,selectedCandidate,id);
