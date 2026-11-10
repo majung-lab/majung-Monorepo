@@ -196,8 +196,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             Screen.HISTORY -> HistoryScreen(records = model.history.map { entry ->
                 val p = entry.facility.accessPoints.firstOrNull { it.id == entry.visit.confirmedAccessPointId }
                 VisitRecord(entry.facility.name, formatTime(entry.visit.completedAt ?: entry.visit.updatedAt), VisitMode.valueOf(entry.visit.mode),
-                    "${p?.name.orEmpty()} · ${entry.visit.parkingFloor.orEmpty()} · ${phaseLabel(entry.visit.phase)}",
-                    listOfNotNull(entry.weather?.let(::weatherWord), entry.rating?.let { "평가 ${it.rating}/5 · ${it.tags.joinToString()}" } ?: "평가 없음").joinToString(" · "),
+                    listOf(p?.name, entry.visit.parkingFloor, phaseLabel(entry.visit.phase)).filterNot { it.isNullOrBlank() }.joinToString(" · "),
+                    listOfNotNull(entry.weather?.let(::weatherWord), entry.rating?.let { "평가 ${it.rating}/5" } ?: "평가 없음", entry.rating?.tags?.joinToString()?.ifBlank { null }).joinToString(" · "),
                     facilityId = entry.facility.id, pointId = entry.visit.confirmedAccessPointId)
             }, onBack = home, onRevisit = ::revisit)
         }
