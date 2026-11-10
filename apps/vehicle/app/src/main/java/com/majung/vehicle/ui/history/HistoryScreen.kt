@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,7 +30,6 @@ import com.majung.vehicle.domain.model.VisitRecord
 import com.majung.vehicle.domain.model.label
 import com.majung.vehicle.ui.theme.BackHeader
 import com.majung.vehicle.ui.theme.Ink
-import com.majung.vehicle.ui.theme.Tag
 import com.majung.vehicle.ui.theme.card
 
 // C09 목적지 기록
@@ -44,17 +44,18 @@ fun HistoryScreen(
         LazyColumn(Modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             items(records) { r ->
                 Row(
-                    Modifier.fillMaxWidth().height(92.dp).card(Ink.surface, 14).padding(start = 23.dp, end = 23.dp),
+                    Modifier.fillMaxWidth().height(108.dp).card(Ink.surface, 14).padding(start = 23.dp, end = 23.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
+                        // 큰 차량 화면에서도 날짜가 눌리지 않게 한 줄로 두고 넘치면 줄인다. 날씨·평가는 길어서 셋째 줄로
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text(r.place, color = Ink.text, fontSize = 20.sp, fontWeight = FontWeight.Medium)
-                            Text("${r.date} · ${r.mode.label}", Modifier.padding(start = 10.dp, bottom = 1.dp), Ink.sub, 16.sp)
+                            Text(r.place, Modifier.weight(1f, fill = false), Ink.text, 20.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${r.date} · ${r.mode.label}", Modifier.padding(start = 10.dp, bottom = 1.dp), Ink.sub, 16.sp, maxLines = 1, softWrap = false)
                         }
-                        Text(r.outcome, Modifier.padding(top = 2.dp), Ink.subOnAccent, 16.sp)
+                        Text(r.outcome, Modifier.padding(top = 2.dp), Ink.subOnAccent, 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.weatherTime, Modifier.padding(top = 4.dp), Ink.sub, 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Tag(r.weatherTime)
                     Box(
                         Modifier
                             .padding(start = 20.dp)

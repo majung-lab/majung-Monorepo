@@ -16,7 +16,8 @@ import android.util.Log
 
 /**
  * Pleos NaviHelper로 차량 내장 내비에 목적지를 넣는다.
- * requestRoute 호출만으로는 성공이 아니므로 경로 시작 이벤트나 오류 이벤트, 10초 무응답으로 결과를 정한다.
+ * requestRoute 호출만으로는 성공이 아니므로 경로 시작 이벤트나 오류 이벤트, 20초 무응답으로 결과를 정한다.
+ * (Pleos 에뮬레이터에서 경로 탐색 후 시작 이벤트까지 8~12초 걸려 10초는 짧았다)
  * Pleos 내비가 없는 기기에서는 연결이 실패해 Failed로 끝난다.
  */
 class PleosNaviClient(context: Context) : NaviClient {
@@ -163,7 +164,7 @@ class PleosNaviClient(context: Context) : NaviClient {
     }
 
     private companion object {
-        const val RESULT_TIMEOUT_MS = 10_000L
+        const val RESULT_TIMEOUT_MS = 20_000L
         const val NAVI_PACKAGE = "ai.umos.maps.android.navigation.app"
         const val TAG = "MajungNavi"
         /** NaviHelper의 duration·remainTime은 초 단위다 (Pleos 에뮬레이터: 내비 "38분" = 2280) */

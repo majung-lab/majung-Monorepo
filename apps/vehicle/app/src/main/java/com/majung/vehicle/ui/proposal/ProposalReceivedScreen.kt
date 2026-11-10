@@ -105,10 +105,11 @@ fun ProposalReceivedScreen(
                 },
                 color = Ink.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
             )
-            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(proposal.from, color = Ink.sub, fontSize = 20.sp)
-                Text("→", Modifier.padding(horizontal = 12.dp), Ink.sub, 20.sp)
-                Text(proposal.to, color = PinTag, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            // 장소 이름이 길면 한 줄에 둘 다 들어가지 않으므로 기존 → 제안을 두 줄로 둔다
+            Text(proposal.from, Modifier.padding(top = 14.dp), Ink.sub, 20.sp)
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("→", Modifier.padding(end = 10.dp), Ink.sub, 20.sp)
+                Text(proposal.to, Modifier.weight(1f), PinTag, 24.sp, fontWeight = FontWeight.Bold)
             }
             Text(
                 proposal.reason,

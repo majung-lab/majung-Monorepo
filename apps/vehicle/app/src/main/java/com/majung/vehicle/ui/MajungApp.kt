@@ -149,7 +149,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onDepart = { model.phase("MOVING") { screen = Screen.MOVING } },
                 onLater = { model.phase("MOVING") { screen = Screen.MOVING } },
                 onCancelVisit = { model.phase("CANCELLED") { finish() } },
-                onContacts = { screen = Screen.CONTACTS })
+                onContacts = if (BuildConfig.SMS_INVITE) ({ screen = Screen.CONTACTS }) else null)
             Screen.CONTACTS -> ContactsRoute(model, onBack = { screen = Screen.INVITE })
             Screen.MOVING -> MovingScreen(context, point?.name.orEmpty(),
                 etaMin = snapshot?.vehicle?.etaSec?.let { ceil(it / 60.0).toInt() },
@@ -188,7 +188,8 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 VisitMode.PICKUP -> PickupArrivalScreen(context, point?.name.orEmpty(), listOf("동승자"), formatTime(visit?.updatedAt), null,
                     onBoarded = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onWaiting = { screen = Screen.MOVING },
                     weather = arrivalWeather, rainy = wet,
-                    waitingAt = snapshot?.passengerWaitSpot?.let { spot -> "${spot.name}에서 오는 중" + (spot.walkMinutes?.let { " · ${it}분" } ?: "") })
+                    waitingAt = if (visit?.passengerReadiness == "AT_LOBBY") "가족이 로비에 도착해 기다리는 중"
+                        else snapshot?.passengerWaitSpot?.let { spot -> "${spot.name}에서 오는 중" + (spot.walkMinutes?.let { " · ${it}분" } ?: "") })
                 }
             }
             Screen.REVIEW -> ReviewScreen(context, point?.name.orEmpty(), listOfNotNull("방문 완료 · ${formatTime(visit?.completedAt ?: visit?.updatedAt)}", model.placeWeather?.weather?.let(::weatherWord)).joinToString(" · "), onDone = { rating, tags ->

@@ -52,7 +52,7 @@ fun InviteScreen(
             }
             Column(Modifier.padding(start = 40.dp)) {
                 Text(
-                    if (onContacts != null) "폰으로 찍거나,\n연락처에서 바로 보내 주세요" else "운전자 폰으로 찍고,\n가족에게 링크를 보내 주세요",
+                    if (onContacts != null) "폰으로 찍거나,\n연락처에서 바로 보내 주세요" else "가족 폰 카메라로 찍으면\n바로 연결돼요",
                     Modifier.padding(top = 4.dp),
                     Ink.text, 30.sp, fontWeight = FontWeight.Bold, lineHeight = 40.sp,
                 )

@@ -22,6 +22,9 @@ android {
         // QR에 담을 동승자 웹 주소. 휴대폰으로 찍으려면 PC의 LAN IP로: ./gradlew assembleDebug -PwebUrl=http://192.168.0.12:5173
         val webUrl = (project.findProperty("webUrl") as String?) ?: "http://10.0.2.2:5173"
         buildConfigField("String", "WEB_URL", "\"$webUrl\"")
+        // 연락처로 문자 보내기. 서버에 문자 발송 업체가 연결된 뒤에만 켠다: -PsmsInvite=true
+        val smsInvite = (project.findProperty("smsInvite") as String?) == "true"
+        buildConfigField("boolean", "SMS_INVITE", "$smsInvite")
     }
 
     buildTypes {
