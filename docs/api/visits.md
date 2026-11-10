@@ -8,6 +8,11 @@
 
 방문을 만들면 서버가 이 모드에서 고를 수 있는 장소들을 모두 후보로 등록하고, 요청한 장소를 확정 장소로 정합니다.
 
+이때 서버는 시설의 현재 날씨를 받아 두 군데에 씁니다. 받지 못해도 방문은 그대로 만들어집니다.
+
+- 후보 순위: [시설 날씨 추천](weather.md#get-apifacilitiesidweather)과 같은 규칙(비 예보면 지붕 있는 곳, 이 기기의 지난 평가, 걷는 시간)으로 정합니다.
+- [방문 기록](history.md)의 `weather`: 만들 때의 날씨로 남습니다.
+
 **요청 본문**
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
@@ -86,6 +91,8 @@
   "proposals": [],
   "vehicle": null,
   "passengerLocation": null,
+  "passengerWaitSpot": null,
+  "passengerConditions": { "stroller": false, "luggage": false, "avoidStairs": false, "indoorOnly": false },
   "rating": null
 }
 ```
@@ -117,8 +124,10 @@
 | `vehicle` | object | | 운전자 | 차량 위치·도착 예상 시간. [아래 설명](#vehicle-차량-위치) 참고 |
 | `parkingFloor` | string \| null | | 운전자 | 주차한 층 (1~32자). `null`이면 지움 |
 | `accessPointId` | string | | 운전자 | 확정 장소를 직접 변경. **`PARK`·`DROPOFF` 방문만 가능** |
-| `passengerReadiness` | enum | | 동승자 | `UNSEEN` / `SEEN` / `HEADING_OUT` / `READY` |
+| `passengerReadiness` | enum | | 동승자 | `UNSEEN` / `SEEN` / `READY` / `HEADING_OUT` / `AT_LOBBY`. [값의 의미](models.md#passengerreadiness-동승자-준비-상태) |
 | `passengerLocation` | object \| null | | 동승자 | `{ "lat": number, "lng": number }`. `null`이면 위치 공유 중단 |
+| `passengerWaitSpotId` | string \| null | | 동승자 | 지금 기다리는 대기 장소 ID. [아래 설명](#passengerwaitspotid-동승자가-기다리는-곳) 참고 |
+| `passengerConditions` | object | | 동승자 | 이동 조건. [아래 설명](#passengerconditions-이동-조건) 참고 |
 
 - `requestId`, `version` 외에 **바꿀 필드가 최소 하나는 있어야** 합니다. 없으면 400 `INVALID_REQUEST`입니다.
 - 이미 종료된(`COMPLETED`, `CANCELLED`) 방문은 바꿀 수 없습니다. → 409 `VISIT_ENDED`
@@ -148,11 +157,34 @@ PREPARING ──▶ MOVING ──▶ ARRIVED ──▶ COMPLETED
 |---|---|---|---|
 | `lat` | number \| null | ✓ | 위도 |
 | `lng` | number \| null | ✓ | 경도 |
-| `etaSec` | integer \| null | ✓ | 도착까지 남은 시간(초), 0~86400 |
+| `etaSec` | integer \| null | ✓ | 도착까지 남은 시간(초), 0~86400. 차량 앱은 내장 내비게이션이 알려 주는 남은 시간을 보냅니다. 안내 중이 아니면 `null` |
 | `navResult` | `"set"` \| `"failed"` | | 내비게이션 목적지 설정 결과 |
 
 - GPS를 쓸 수 없으면 `lat`, `lng`를 **둘 다 `null`** 로 보내세요. 하나만 `null`이면 400 `INVALID_POSITION`입니다. 가짜 좌표를 만들어 보낼 필요는 없습니다.
 - 보낼 때마다 위치 이력이 쌓이고, 응답의 `vehicle`에는 마지막 값이 나옵니다.
+- `navResult`를 빼고 보내면 이전 값이 유지됩니다. 확정 장소가 바뀌면(직접 변경, 제안 수락) `navResult`는 `null`로 지워집니다.
+
+### `passengerWaitSpotId`: 동승자가 기다리는 곳
+
+동승자가 "지금 여기 있어요"로 고른 대기 장소입니다.
+
+- 시설의 [`facility.waitSpots`](models.md#facility) 중 아무 곳이나 고를 수 있습니다. 지금 확정된 장소와 동선이 없는 곳이어도 됩니다.
+- 그 밖의 ID는 400 `INVALID_WAIT_SPOT`입니다.
+- `null`을 보내면 지웁니다.
+- 결과는 응답의 [`passengerWaitSpot`](models.md#passengerwaitspot)에 나오고, 확정 장소가 바뀌어도 그대로 남습니다.
+- 이 값과 이동 조건으로 [동승자 추천](weather.md#get-apivisitstokenrecommendation)이 달라집니다.
+
+### `passengerConditions`: 이동 조건
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `stroller` | boolean | ✓ | 유모차가 있음 |
+| `luggage` | boolean | ✓ | 짐이 많음 |
+| `avoidStairs` | boolean | ✓ | 계단을 피하고 싶음 |
+| `indoorOnly` | boolean | ✓ | 실내로만 가고 싶음 |
+
+- 네 값을 **모두** 보내야 합니다. 하나라도 빠지면 400 `INVALID_REQUEST`입니다. 보낸 값이 이전 값을 통째로 바꿉니다.
+- 각 조건이 추천에 주는 영향은 [MoveConditions](models.md#moveconditions)를 참고하세요.
 
 ### `accessPointId`: 장소 직접 변경
 
@@ -188,6 +220,17 @@ PREPARING ──▶ MOVING ──▶ ARRIVED ──▶ COMPLETED
 }
 ```
 
+동승자가 기다리는 곳과 이동 조건을 보냄:
+
+```json
+{
+  "requestId": "req-p-2",
+  "version": 3,
+  "passengerWaitSpotId": "3",
+  "passengerConditions": { "stroller": true, "luggage": false, "avoidStairs": false, "indoorOnly": false }
+}
+```
+
 주차 방문에서 운전자가 장소와 주차 층을 바꿈:
 
 ```json
@@ -203,6 +246,8 @@ PREPARING ──▶ MOVING ──▶ ARRIVED ──▶ COMPLETED
   "proposals": [],
   "vehicle": { "lat": 37.53, "lng": 127.2, "etaSec": 420, "navResult": "set", "recordedAt": "2026-10-30T08:36:44.524Z" },
   "passengerLocation": { "lat": 37.5405, "lng": 127.2193, "recordedAt": "2026-10-30T08:36:44.469Z" },
+  "passengerWaitSpot": null,
+  "passengerConditions": { "stroller": false, "luggage": false, "avoidStairs": false, "indoorOnly": false },
   "rating": null,
   "facility": { "...": "..." }
 }
@@ -215,6 +260,7 @@ PREPARING ──▶ MOVING ──▶ ARRIVED ──▶ COMPLETED
 | 400 | `INVALID_REQUEST` | 형식 오류, 바꿀 필드 없음, 정의되지 않은 필드 |
 | 400 | `INVALID_POSITION` | `vehicle.lat`, `vehicle.lng` 중 하나만 `null` |
 | 400 | `INVALID_ACCESS_POINT` | 이 방문의 후보가 아닌 장소 |
+| 400 | `INVALID_WAIT_SPOT` | 이 시설의 대기 장소가 아닌 `passengerWaitSpotId` |
 | 403 | `FORBIDDEN` | 내 역할이 바꿀 수 없는 필드 포함 |
 | 403 | `MUTUAL_CONSENT_REQUIRED` | `PICKUP` 방문에서 `accessPointId` 변경 |
 | 404 | `VISIT_NOT_FOUND` | 없는 토큰 |

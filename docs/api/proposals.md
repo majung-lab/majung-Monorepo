@@ -7,7 +7,7 @@
 ```
 제안(POST)  ──▶  PENDING ──┬─ 상대가 수락 ──▶ ACCEPTED  (확정 장소 변경)
                            ├─ 상대가 거절 ──▶ REJECTED
-                           ├─ 제안자가 취소 ─▶ EXPIRED
+                           ├─ 제안자가 취소 ─▶ CANCELLED
                            ├─ 10분 경과 ────▶ EXPIRED
                            └─ 방문 종료 ────▶ EXPIRED
 ```
@@ -19,7 +19,7 @@
 | 누가 응답 | **제안하지 않은 쪽**만 수락·거절 가능 |
 | 누가 취소 | **제안한 쪽**만 취소 가능 |
 | 유효 시간 | 제안 후 **10분**. 지나면 `EXPIRED`로 보이고 응답할 수 없습니다 |
-| 제안할 수 있는 장소 | 방문 생성 때 후보로 등록된 장소 중 현재 확정 장소가 아닌 곳 |
+| 제안할 수 있는 장소 | 방문 생성 때 후보로 등록된 장소 중 현재 확정 장소가 아닌 곳, 또는 [지도에서 고른 위치](#지도에서-고른-위치-제안) |
 
 - 제안, 응답, 취소도 모두 변경 요청이라 `requestId`, `version`이 필요하고, 성공하면 `visit.version`이 1 올라갑니다.
 - 제안 목록은 [VisitSnapshot](models.md#visitsnapshot)의 `proposals`에 최신순으로 들어 있습니다.
@@ -35,8 +35,11 @@
 |---|---|---|---|---|
 | `requestId` | string | ✓ | 1~128자 | |
 | `version` | integer | ✓ | | 마지막으로 본 `visit.version` |
-| `accessPointId` | string | ✓ | 숫자 문자열 | 바꾸고 싶은 장소 ID |
+| `accessPointId` | string | △ | 숫자 문자열 | 바꾸고 싶은 장소 ID |
+| `location` | object | △ | `{ "lat": number, "lng": number }` | 지도에서 고른 위치. [아래 설명](#지도에서-고른-위치-제안) 참고 |
 | `reason` | string | | 최대 500자 | 제안 이유. 상대 화면에 보여 줄 수 있습니다 |
+
+△ `accessPointId`와 `location` 중 **정확히 하나**를 보내야 합니다. 둘 다 보내거나 둘 다 빠지면 400 `INVALID_REQUEST`입니다.
 
 ```json
 {
@@ -70,11 +73,25 @@
 }
 ```
 
+### 지도에서 고른 위치 제안
+
+등록된 장소가 아닌 곳에서 만나고 싶을 때 `location`으로 좌표를 보냅니다.
+
+```json
+{ "requestId": "req-p-pin", "version": 3, "location": { "lat": 37.5421, "lng": 127.2233 } }
+```
+
+- 서버가 이 방문에서만 쓰는 장소를 새로 만들고, 그 ID가 제안의 `accessPointId`가 됩니다.
+- 새 장소는 이 방문의 `facility.accessPoints`에만 들어가고 [공용 시설 목록](facilities.md#get-apifacilities)에는 나오지 않습니다.
+- 새 장소는 `allowed: false`이고 설명은 "확인되지 않은 위치예요. 차를 세우기 어려울 수 있어요"입니다. 차를 세울 수 있는지 확인되지 않은 곳이라는 뜻입니다.
+- 이름은 카카오 좌표→주소 변환으로 찾은 건물명·도로명 주소입니다(서버에 `KAKAO_REST_KEY`가 있을 때). 찾지 못하면 "지도에서 고른 위치"입니다.
+- 상대가 수락하면 이 위치가 확정 장소가 됩니다.
+
 **에러**
 
 | 상태 | code | 원인 |
 |---|---|---|
-| 400 | `INVALID_REQUEST` | 형식 오류 |
+| 400 | `INVALID_REQUEST` | 형식 오류, `accessPointId`와 `location`을 둘 다 보내거나 둘 다 빠뜨림 |
 | 400 | `SAME_ACCESS_POINT` | 지금 확정된 장소와 같음 |
 | 400 | `INVALID_ACCESS_POINT` | 이 방문의 후보가 아닌 장소 (예: 승하차 금지 구역) |
 | 404 | `VISIT_NOT_FOUND` | 없는 토큰 |
@@ -141,7 +158,7 @@
 
 ## DELETE /api/visits/{token}/proposals/{id}
 
-내가 낸 제안을 취소합니다. **제안한 쪽의 토큰**으로 호출해야 합니다. 취소된 제안은 `EXPIRED` 상태가 됩니다(별도의 `CANCELLED` 상태는 없습니다).
+내가 낸 제안을 취소합니다. **제안한 쪽의 토큰**으로 호출해야 합니다. 취소된 제안은 `CANCELLED` 상태가 됩니다.
 
 **요청 본문**: `DELETE`지만 본문이 필요합니다. `Content-Type: application/json`도 함께 보내세요.
 
@@ -154,7 +171,7 @@
 { "requestId": "req-d-cancel2", "version": 6 }
 ```
 
-**응답 200:** [VisitSnapshot](models.md#visitsnapshot). 해당 제안의 `status`가 `EXPIRED`로 바뀌어 있습니다.
+**응답 200:** [VisitSnapshot](models.md#visitsnapshot). 해당 제안의 `status`가 `CANCELLED`로 바뀌어 있습니다.
 
 **에러**
 

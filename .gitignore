@@ -12,3 +12,6 @@ apps/vehicle/app/build/
 apps/vehicle/local.properties
 .idea/
 .DS_Store
+
+# 시연 영상 제작 작업물 (영상은 유튜브로 제출)
+docs/demos/

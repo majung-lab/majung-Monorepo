@@ -1,143 +1,134 @@
 # 마중 (Majung)
 
-차량 앱 · 동승자 모바일 웹 · 방문 서버가 **같은 SQLite 방문 상태**를 공유하는 모노레포다. 차량에서 방문을 생성하고 QR을 열면 동승자의 준비 상태, 실제 공유 위치, 장소 변경 제안·수락, 방문 완료와 평가가 서버에 저장된다. 앱 안의 자동 운행·자동 수락 시뮬레이션은 사용하지 않는다.
+**어디서 내리고, 어디서 기다리고, 언제 다시 만날지 — 차와 가족이 함께 정하는 Pleos Connect 차량 앱**
+
+아이·유모차와 함께 복합쇼핑몰에 간 가족은 보통 운전자가 가족을 입구에 내려 주고 따로 움직였다가 다시 만납니다. 이때 "북문이라며?" "유모차로 서문은 계단이야" 같은 전화가 오가고 입구가 엇갈립니다.
+
+마중은 차량이 설 수 있는 곳(승하차 구역·날씨)과 가족이 걸어 나올 길(대기 지점·유모차·계단)을 함께 보고 만날 곳을 정합니다. 정한 장소는 차량 내장 내비에 바로 들어갑니다. 가족은 앱 설치 없이 QR 링크 하나로 참여합니다.
+
+> **시연 영상 (2분 38초):** <유튜브 링크>  
+> Pleos Connect 에뮬레이터와 가족 휴대폰 웹을 같은 서버에 붙여 실제로 조작한 화면입니다.
+
+---
+
+## 핵심 기능
+
+| | |
+|---|---|
+| ![날씨를 보고 승하차 지점 추천](docs/images/c04-weather.png) | **날씨로 승하차 지점 추천**<br>목적지와 모드(픽업하기·내려주기·그냥가기)를 고르면 도착지의 기상청 단기예보를 봅니다. 6시간 안에 비·눈이 오면 지붕 있는 동선을 먼저 추천하고, 이유를 한 줄로 보여 줍니다. 지난번 평가도 순서에 반영합니다. |
+| ![QR 한 번으로 가족 연결](docs/images/qr.png) | **QR 한 번으로 가족 연결**<br>방문을 시작하면 차량 화면에 QR이 뜹니다. 가족은 휴대폰 카메라로 찍기만 하면 앱 설치·가입 없이 같은 방문에 참여합니다. 링크는 24시간 뒤 만료됩니다. |
+| ![가족 화면](docs/images/family-advice.png) | **가족이 있는 곳과 조건으로 다시 추천**<br>가족은 "지금 어디 계세요?"에서 대기 지점(로비·가족휴게실)과 이동 조건(유모차·짐 많음·계단 피하기·실내로만)을 고릅니다. 마중은 그 자리에서 각 승하차 지점까지의 동선을 비교해, 계단이 있거나 유모차로 갈 수 없는 곳은 제외 이유와 함께 빼고 더 나은 곳을 추천합니다. "여기로 바꾸자고 하기"로 바로 제안합니다. |
+| ![내장 내비와 마중 배너](docs/images/navi-banner.png) | **차량 내장 내비 연동**<br>출발하면 확정된 승하차 지점이 Pleos 내장 내비의 목적지로 자동 입력되고, 안내 시작 이벤트로 결과를 확인합니다. 내비를 보는 동안에도 화면 위의 마중 배너와 알림 카드로 가족의 준비 상태와 제안을 놓치지 않습니다. |
+| ![주행 중에는 정차 후 응답](docs/images/driving-proposal.png) | **주행 중 안전**<br>주행 중에는 화면을 꼭 필요한 것만 남기고, 가족의 장소 변경 제안은 "정차하면 수락·거절할 수 있어요 · 그동안 기존 장소로 안내"로 미룹니다. 정차 후 수락하면 내비 목적지가 새 장소로 바뀝니다. |
+| ![가족 화면의 도착 예정 시간](docs/images/family-eta.png) | **도착 예정 시간과 준비 상태 공유**<br>내비가 알려 주는 남은 시간을 받아 가족 화면에 "약 30분 · 21:58"로 보여 줍니다. 가족은 "준비됐어요 → 지금 나갈게요 → 로비에 도착했어요"를 눌러 운전석에 알립니다. |
+| ![장소 평가](docs/images/review.png) | **탑승 확인과 장소 평가**<br>도착하면 가족이 모두 탔는지 확인하고, 이번 승하차 지점을 "좋았어요·보통·별로"와 이유 태그로 평가합니다. 평가는 다음 추천 순서에 반영됩니다. |
+| ![목적지 기록](docs/images/history.png) | **목적지 기록과 다시 가기**<br>기록에는 그날의 날씨와 평가가 남고, "다시 가기" 한 번으로 같은 장소의 방문을 바로 시작합니다. 앱이나 시동을 다시 켜도 서버에 저장된 진행 중인 방문으로 돌아옵니다. |
+
+## Pleos Connect · SDK 활용
+
+| 구분 | 사용한 것 | 마중에서 하는 일 | 코드 |
+|---|---|---|---|
+| Pleos NaviHelper | `requestRoute` | 확정한 승하차 지점을 내장 내비 목적지로 넣는다 | [PleosNaviClient.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/pleos/navi/PleosNaviClient.kt) |
+| | `onRouteStarted` / `onError` | 요청만으로 성공 처리하지 않고, 안내 시작 이벤트로 결과를 확정한다(20초 무응답이면 다시 시도 안내). 시작 시 전체 소요 시간을 받는다 | 〃 |
+| | `getDestinationInfo` / `onDestinationInfo` | 안내 중 남은 시간·거리를 받아 가족 화면의 도착 예정 시간으로 공유한다(목적지가 마중 장소가 아니면 쓰지 않음) | 〃, [VehicleViewModel.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/VehicleViewModel.kt) |
+| | `requestNavigationScreen` | "내비 보기"로 내비 화면을 앞으로 띄운다 | 〃 |
+| | `onDestinationArrived` | 내비 도착 이벤트로 도착을 처리한다(도착지 이름이 같거나 300m 안일 때만) | 〃 |
+| Android Car API | `CarUxRestrictionsManager` | 주행 상태에 따라 화면·조작을 제한한다(제안 응답·장소 변경·방문 취소는 정차 후) | [UxRestrictionWatcher.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/core/uxrestriction/UxRestrictionWatcher.kt) |
+| Android | 포그라운드 서비스 · 오버레이 · 알림 | 내비 위 마중 배너, 새 소식 카드, 백그라운드 위치·상태 동기화 | [core/notice](apps/vehicle/app/src/main/java/com/majung/vehicle/core/notice) |
+| 권한 | `pleos.car.permission.NAVI_ROUTE`, `NAVI_ROUTE_SEARCH` | 경로 요청 | [AndroidManifest.xml](apps/vehicle/app/src/main/AndroidManifest.xml) |
+
+큰 Pleos 화면(2560×1440)에서는 앱이 자동으로 커지고([PanelScale.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/theme/PanelScale.kt)), 모든 화면을 Pleos 에뮬레이터에서 확인했습니다.
+
+## 구성
 
 ```
-apps/vehicle/       Kotlin + Compose / AAOS 차량 앱
-apps/web/           Vite + React 동승자 웹
-apps/server/        Fastify + node:sqlite + WebSocket 방문 서버
-packages/shared/    웹·서버 API 타입
-contracts/          openapi.yaml (차량 DTO 포함 API 계약)
+ 차량 (Pleos Connect)                  가족 휴대폰 (브라우저)
+ apps/vehicle                          apps/web
+ Kotlin · Jetpack Compose              React · TypeScript · Vite · 카카오맵
+ Pleos NaviHelper · Car API                      │
+        │   HTTPS + WebSocket                    │  QR 링크 (앱 설치 없음)
+        └──────────────┬─────────────────────────┘
+                       ▼
+                 apps/server
+                 Fastify · node:sqlite · WebSocket
+                 방문 상태 · 장소 합의 · 추천(날씨·동선·평가)
+                 기상청 단기예보 · 카카오 로컬(주소)
 ```
+
+| 폴더 | 내용 |
+|---|---|
+| [apps/vehicle](apps/vehicle) | 차량 앱 (Android Automotive / Pleos Connect) |
+| [apps/web](apps/web) | 가족(동승자) 모바일 웹 |
+| [apps/server](apps/server) | 방문 서버. DB 스키마는 [majung-db](apps/server/src/db/majung-db/UPSTREAM.md) |
+| [packages/shared](packages/shared/src/index.ts) | 웹·서버 공용 API 타입 |
+| [contracts/openapi.yaml](contracts/openapi.yaml) | API 계약 (OpenAPI) |
+| [docs/api](docs/api/README.md) | API 문서 (요청·응답 예시, 에러 코드, curl 따라 하기) |
 
 ## 실행
 
-요구 환경: Node **22.13+** (Vite 7 및 플래그 없는 `node:sqlite`; 검증 환경 24.6.0), npm, JDK 17, Android SDK 35.
+요구 환경: Node 22.13 이상(검증 24.6.0), npm, JDK 17, Android SDK 35.
 
-저장소 루트에서 설치 후, 서버와 웹을 각각 별도 터미널에서 실행한다.
+### 1. 서버와 가족 웹
 
 ```bash
 npm ci
-npm run dev:server
-npm run dev:web        # http://localhost:5173
-npm run dev:web:https  # https://localhost:5174, 휴대폰에서 내 위치까지 볼 때
+cp apps/server/.env.example apps/server/.env   # 키는 선택 사항
+cp apps/web/.env.example apps/web/.env
+npm run dev:server     # http://localhost:4000/health
+npm run dev:web        # http://localhost:5173 (별도 터미널)
 ```
 
-- 서버: `http://localhost:4000/health`
-- 동승자 웹: 차량에서 생성한 `http://localhost:5173/v/<passengerToken>` 링크. `/v/demo`는 실제 방문이 아니므로 동작하지 않는다.
-- 웹 개발 서버는 `/api`와 `/ws`를 localhost:4000으로 전달한다. 두 서버를 함께 실행해야 한다.
-- 기본 DB는 npm 서버 워크스페이스 기준 `apps/server/data/majung.sqlite`이다. 재시작해도 유지되며 Git에 포함되지 않는다.
-- 다른 경로·기존 canonical DB를 사용할 때는 절대 경로를 지정한다.
+웹 개발 서버는 `/api`와 `/ws`를 4000으로 전달하므로 두 서버를 함께 켭니다. DB는 `apps/server/data/majung.sqlite`에 저장되고, 비어 있으면 예시 시설을 넣습니다.
 
-```bash
-DB_PATH=/absolute/path/majung.sqlite PORT=4000 npm run dev:server
-```
+| 환경 변수 | 위치 | 없으면 |
+|---|---|---|
+| `KMA_SERVICE_KEY` | `apps/server/.env` | 날씨 없이 걷는 시간 순으로 추천 ([공공데이터포털 기상청 단기예보](https://www.data.go.kr)) |
+| `WEATHER_DEMO=rain\|clear` | `apps/server/.env` | 키 없이 시연할 때 고정 날씨. 키가 있으면 무시 |
+| `KAKAO_REST_KEY` | `apps/server/.env` | 지도에서 고른 위치가 주소 대신 "지도에서 고른 위치"로 표시 |
+| `VITE_KAKAO_MAP_KEY` | `apps/web/.env` | 가족 화면 지도가 뜨지 않음 (다른 기능은 동작) |
 
-차량 앱은 Android Studio에서 `apps/vehicle`을 열거나 다음과 같이 빌드한다.
+### 2. 차량 앱 (Pleos 에뮬레이터)
+
+1. Android Studio → SDK Manager → SDK Update Sites에 Pleos 시스템 이미지를 추가하고 **Pleos Connect v2.1.0** 이미지를 설치합니다(약 19GB).
+   - Apple Silicon: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-arm64-sys-img.xml`
+   - Intel: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml`
+2. 이 이미지로 AVD를 만들고(Cold boot), `-gpu host`로 실행합니다. 처음 켠 뒤에는 내장 내비 앱을 한 번 열어 두어야 첫 경로 요청이 성공합니다.
+3. 앱을 빌드해 운전자 사용자(user 10)에 설치합니다.
 
 ```bash
 cd apps/vehicle
 ./gradlew assembleDebug
+adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.POST_NOTIFICATIONS
+adb -s emulator-5554 shell appops set --user 10 com.majung.vehicle SYSTEM_ALERT_WINDOW allow   # 내비 위 배너
 ```
 
-기본 에뮬레이터 서버 주소는 `http://10.0.2.2:4000`이다. 실제 휴대폰으로 QR을 열려면 PC와 휴대폰을 같은 네트워크에 연결하고, PC의 실제 LAN IP로 웹 주소를 빌드한다. 실제 차량 장치의 서버 주소도 LAN IP로 지정한다.
+에뮬레이터는 서버를 `http://10.0.2.2:4000`으로 찾습니다. 실제 휴대폰으로 QR을 찍으려면 PC의 LAN IP로 빌드합니다(`-PwebUrl=http://<LAN IP>:5173 -PserverUrl=http://<LAN IP>:4000`). 휴대폰에서 내 위치까지 공유하려면 HTTPS 웹(`npm run dev:web:https`, 5174)을 씁니다.
 
-```bash
-./gradlew assembleDebug -PwebUrl=http://192.168.0.12:5173 -PserverUrl=http://192.168.0.12:4000
-```
-
-위 IP는 예시이므로 해당 PC의 주소로 바꾼다. 휴대폰의 `localhost`는 PC가 아니다. 브라우저 GPS 공유는 HTTPS 또는 브라우저가 허용하는 보안 컨텍스트가 필요하므로, 일반 LAN HTTP에서는 위치 공유가 거절될 수 있다. 위치 권한 없이도 준비 상태·제안·수락은 동작한다.
-
-### 휴대폰에서 내 위치까지 확인 (HTTPS)
-
-`npm run dev:web` 대신 HTTPS 개발 서버를 켠다. 포트는 5174이고 서버(`npm run dev:server`)는 그대로 함께 실행한다.
-
-```bash
-npm run dev:web:https
-```
-
-차량 앱의 QR도 HTTPS 주소로 빌드한다.
-
-```bash
-./gradlew assembleDebug -PwebUrl=https://192.168.0.12:5174
-```
-
-카카오 개발자 콘솔의 JavaScript SDK 도메인에 `https://192.168.0.12:5174`를 추가한다. 개발용 임시 인증서라 처음 열 때 브라우저 경고가 나오며, 경고를 넘긴 뒤 위치 권한을 허용한다.
-
-### 카카오 키
-
-- 웹 지도: `apps/web/.env.example`을 `apps/web/.env`로 복사하고 `VITE_KAKAO_MAP_KEY`에 JavaScript 키를 넣는다. 사용할 주소를 JavaScript SDK 도메인에 모두 등록한다.
-- 주소 변환: `apps/server/.env.example`을 `apps/server/.env`로 복사하고 `KAKAO_REST_KEY`에 REST API 키를 넣는다. 없으면 자유 핀이 "지도에서 고른 위치"로 표시된다.
-- `.env`는 커밋하지 않는다. 값을 바꾸면 해당 서버를 다시 시작한다.
-
-### Pleos 에뮬레이터에서 차량 앱 실행
-
-내장 내비(Pleos NaviHelper) 연동은 Pleos 에뮬레이터에서만 동작한다. 일반 AAOS 에뮬레이터에서는 "내비 연결 실패"로 표시되고 나머지 기능은 그대로 쓸 수 있다.
-
-1. Android Studio → SDK Manager → SDK Update Sites에 Pleos 시스템 이미지 주소를 추가한다.
-   - Apple Silicon(M1 이상): `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-arm64-sys-img.xml`
-   - Intel: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml`
-2. SDK Platforms에서 **Pleos Connect v2.1.0 APIs** 시스템 이미지를 설치한다. 명령줄로는 다음과 같다(설치 후 약 19GB를 차지하므로 여유 공간을 확인한다).
-
-   ```bash
-   sdkmanager "system-images;android-34;pleos_car_emulator;arm64-v8a"
-   ```
-
-3. Device Manager에서 이 이미지로 AVD를 만든다(예: `Pleos_Car`). Boot option은 **Cold boot**로 둔다.
-4. 서버(`npm run dev:server`)를 켜고 에뮬레이터를 실행한 뒤 앱을 설치한다. Pleos 에뮬레이터는 운전자 사용자(user 10)로 동작하므로 `--user 10`을 붙인다.
-
-   ```bash
-   cd apps/vehicle
-   ./gradlew assembleDebug
-   adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk
-   adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.POST_NOTIFICATIONS
-   # 내비 위에 떠 있는 마중 배너 (에뮬레이터에는 이 권한을 켜는 설정 화면이 없다)
-   adb -s emulator-5554 shell appops set --user 10 com.majung.vehicle SYSTEM_ALERT_WINDOW allow
-   ```
-
-5. 아래 독의 앱 목록(네모 4개)에서 **마중**을 실행한다. 휴대폰이 USB로 함께 연결돼 있으면 `adb` 명령에 `-s emulator-5554`를 꼭 붙인다.
-
-- 이동을 시작하면 목적지가 내장 내비에 들어간다. 이동 중 화면의 "내비 보기"로 내비에 가고, 내비 위쪽의 마중 배너(위로 밀면 접힘, 내리면 펼침)나 독의 앱 버튼으로 돌아온다.
-- 큰 Pleos 화면(1682×1210dp)에서는 앱이 자동으로 약 2.2배 커진다. 기존 차량 화면 크기에서는 그대로다.
-- 에뮬레이터 내비의 지도 바탕은 비어 보일 수 있다. 경로선·길 안내는 나온다.
-- 에뮬레이터 내비는 `adb emu geo fix` 위치를 따라 움직이지 않는다. 그래서 내비 도착 시 자동 "도착했어요"는 에뮬레이터에서 아직 확인하지 못했다.
-
-## DB 원본과 보존
-
-[majung-lab/majung-db](https://github.com/majung-lab/majung-db)의 커밋 `67ad83e1cef5a3c706920a9a3adc7c425007f30c`를 통합했다. GitHub 저장소는 SQL 원본이며 실행 중인 원격 DB 서비스가 아니다. 서버는 원본 13개 테이블·뷰·트리거와 시설 시드를 [vendored SQL](apps/server/src/db/majung-db/UPSTREAM.md)에서 초기화하고, 앱의 데이터는 위 SQLite 파일에 저장한다.
-
-- 연결마다 foreign keys를 켜고 WAL·busy timeout을 사용한다.
-- 방문을 먼저 생성한 뒤 후보를 만들고 확정 후보를 연결한다.
-- 쓰기는 트랜잭션, `WHERE version = ?`, requestId 재시도 처리를 거친다. 동시 변경은 409를 반환한다.
-- 로컬 API 확장 테이블 3개는 중복 요청 응답, 제안 전 장소, 선택적인 위치·주차 층만 저장한다. 원본 SQL 파일은 수정하지 않았다.
-- 시설이 비어 있을 때만 원본 예시 쇼핑몰·미술관을 넣는다. 기존 시설·방문은 교체하거나 삭제하지 않는다. 데모 방문·시나리오는 운영 DB에 넣지 않는다.
-- 이전 모노레포의 단순 `phase` 기반 DB는 자동으로 덮어쓰지 않는다. 해당 DB가 지정되면 명시적 오류로 중단한다. 기존 파일을 보관하고 새 `DB_PATH`를 사용한다. 이전 더미 스키마에서 canonical 스키마로의 데이터 이관 도구는 포함하지 않는다.
-
-실행 중 DB를 백업할 때는 SQLite backup 명령을 사용한다. 사용 중인 DB 파일 하나만 복사하면 WAL의 최신 변경을 놓칠 수 있다.
-
-```bash
-sqlite3 /absolute/path/majung.sqlite ".backup '/absolute/path/majung-backup.sqlite'"
-```
-
-파일에는 방문 링크·위치가 있으므로 private 데이터로 다룬다. 앱은 차량/동승자 역할별 임의 토큰을 나눠 권한을 검사한다. 차량의 임의 device ID는 방문 기록 조회 권한이므로 공유하면 안 된다. 서버는 토큰이 들어가는 URL을 요청 로그에 남기지 않는다. 링크는 24시간 후 만료되며, 저장된 방문 기록은 차량 device ID로 계속 조회할 수 있다. 평가는 방문 완료 후 링크 만료 전까지 1회 저장한다.
-
-## 검증
+## 테스트
 
 ```bash
 npm run typecheck
 npm run build
-npm test -w @majung/server
-npm test -w @majung/web
-cd apps/vehicle
-./gradlew testDebugUnitTest assembleDebug
+npm test -w @majung/server      # 26개: 방문 흐름, 권한·버전 충돌·중복 요청, 실시간 방송, 날씨·추천, 대기 지점·이동 조건, 평가 반영
+npm test -w @majung/web         # 7개
+cd apps/vehicle && ./gradlew testDebugUnitTest assembleDebug
 ```
 
-서버 테스트는 양쪽 역할의 준비·GPS·제안·수락·완료·평가, 서버 재시작 후 저장, 권한·입력 검증·버전 충돌·중복 요청, WebSocket 방송, 주차·내려주기 직접 장소 변경, 만료 제안, 기존 canonical DB 확장과 레거시 DB 보존을 확인한다.
+## 데이터와 보안
 
-## 실제 서비스에 남은 외부 조건
+- 방문마다 운전자·동승자 토큰을 따로 발급해 역할별 권한을 검사합니다. 링크는 24시간 뒤 만료되고, 토큰이 든 URL은 서버 로그에 남기지 않습니다.
+- 모든 쓰기는 트랜잭션, 버전 검사(`version`), 요청 번호(`requestId`) 재시도 처리를 거칩니다. 동시 변경은 409로 거절하고, 앱은 최신 상태를 다시 받아 옵니다(백그라운드 위치 전송은 한 번 더 보냄).
+- 위치는 진행 중인 최신 값과 갱신 시각만 보관하고 전체 이동 궤적은 저장하지 않습니다.
 
-현재 원본 DB의 시설명·좌표·승하차 정보는 **예시 데이터**다. 앱에도 이를 표시한다. 실제 시설로 운영하려면 승하차 허용 구역·대기 장소·연결 동선을 현장 확인해 교체해야 한다.
+## 현재 범위와 한계
 
-Pleos 내비게이션 SDK가 제공되지 않아 `FakeNaviClient`를 유지한다. 실제 차량 내비 경로 설정·도착 센서 연동·주행 제한은 SDK와 차량에서 추가 검증해야 한다. GPS는 장치가 실제로 제공한 위치만 공유하며, 없으면 위치 미공유 상태로 표시한다. 운전자가 이동 시작·도착·탑승 완료를 명시적으로 진행한다.
+- **시설 데이터는 예시입니다.** 시설명·좌표·승하차 지점·동선은 검증용 예시이며 앱에도 표시합니다. 실제 운영에는 현장 확인한 데이터로 바꿔야 합니다.
+- **문자·카카오톡 공유는 연결하지 않았습니다.** 공유는 QR입니다. 연락처 문자 보내기 화면과 서버 엔드포인트는 있지만, 발송 업체가 연결되지 않아 기본 빌드에서는 숨겨져 있습니다(`-PsmsInvite=true`).
+- **에뮬레이터 내비는 지도 바탕을 그리지 않습니다.** Pleos 에뮬레이터의 내장 내비 렌더링 문제로, 경로선·턴바이턴·도착 예정 시간은 정상입니다.
+- **내비 도착 자동 감지는 에뮬레이터에서 확인하지 못했습니다.** 에뮬레이터 내비가 경로를 따라 움직이지 않기 때문이며, "도착했어요" 버튼으로 진행합니다.
+- 현재 실행 구성은 로컬·신뢰 네트워크 개발용입니다. 공개 배포에는 HTTPS 서버와 영속 DB 볼륨이 필요합니다.
 
-현재 실행 구성은 로컬/신뢰할 수 있는 네트워크 개발용이다. 공용 배포는 HTTPS 웹·서버와 영속 DB 볼륨이 필요하다. 외부 배포나 원격 DB 호스팅을 생성하지 않았다.
+---
+
+팀 ITDA · 현대자동차그룹 차량용 앱 개발 공모전 2026

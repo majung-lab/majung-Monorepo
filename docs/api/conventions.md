@@ -42,6 +42,8 @@
 
 상태를 바꾸는 모든 요청(방문 생성 제외 PATCH·POST·DELETE)의 본문에는 다음 두 값이 반드시 들어갑니다. 방문 생성(`POST /api/visits`)에는 `requestId`만 들어갑니다.
 
+예외: [문자 초대](invites.md)(`POST /api/visits/{token}/invites`)는 방문을 바꾸지 않아서 `version`이 없고, `requestId`는 같은 문자를 두 번 보내지 않는 데만 씁니다. 아래 `REQUEST_REUSED` 규칙도 적용되지 않습니다.
+
 ```json
 { "requestId": "8f14e45f-ceea-4e7a-9b2d-1c0a7e3f5b21", "version": 3, "...": "..." }
 ```

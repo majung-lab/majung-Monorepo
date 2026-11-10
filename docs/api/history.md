@@ -21,6 +21,7 @@ curl "http://localhost:4000/api/history?driverDeviceId=7f3c2a9e-1b4d-4e8a-9c6f-0
 - 최근에 만든 방문부터 **최대 100개**를 돌려줍니다.
 - 진행 중, 완료, 취소, 만료된 방문이 모두 포함됩니다.
 - 토큰과 동승자 위치는 들어 있지 않습니다.
+- `weather`는 방문을 만들 때의 날씨입니다. 그때 날씨를 받지 못했으면 `null`입니다.
 - 기록이 없는 기기 ID면 빈 배열 `[]`을 돌려줍니다. 에러가 나지 않습니다.
 
 ```json
@@ -44,6 +45,15 @@ curl "http://localhost:4000/api/history?driverDeviceId=7f3c2a9e-1b4d-4e8a-9c6f-0
       "rating": 4,
       "tags": ["지붕 있음", "대기 편함"],
       "comment": "북문이 비 피하기 좋았어요"
+    },
+    "weather": {
+      "condition": "CLOUDY",
+      "tempC": 14,
+      "rainChance": 70,
+      "rainSoon": true,
+      "summary": "18시부터 비 · 강수확률 70%",
+      "checkedAt": "2026-10-30T08:36:29.650Z",
+      "source": "KMA"
     }
   }
 ]

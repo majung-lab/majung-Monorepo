@@ -13,7 +13,7 @@ data class MapPoint(val id: String, val name: String, val pos: LatLng)
 
 val FACILITY_POS = LatLng(37.5455, 127.224)
 
-// ponytail: 시설 데이터(data/facilities) 붙기 전까지 더미
+// ponytail: 미리보기·테스트용 예시 좌표. 실제 화면은 서버 시설 데이터를 쓴다
 val MAP_POINTS = listOf(
     MapPoint("north", "북문 로비", LatLng(37.5468, 127.2239)),
     MapPoint("west", "서문 로비", LatLng(37.5455, 127.2214)),

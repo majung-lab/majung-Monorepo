@@ -83,7 +83,8 @@ paths:
     patch:
       operationId: updateVisit
       description: |
-        Driver alone sets phase, vehicle, parkingFloor; passenger alone sets readiness/location.
+        Driver alone sets phase, vehicle, parkingFloor; passenger alone sets readiness, location,
+        passengerWaitSpotId and passengerConditions.
         Driver may directly set accessPointId only for PARK/DROPOFF; PICKUP always requires
         the other participant to accept a proposal. Candidates must belong to this visit.
         Valid phase transitions are PREPARING -> MOVING -> ARRIVED -> COMPLETED; any active
@@ -148,10 +149,12 @@ paths:
     get:
       operationId: getRecommendation
       description: >
-        Passenger view. Re-ranks the visit's usable access points from the passenger's chosen wait spot and
+        Used by the passenger view (any participant token of the visit is accepted, also after it ends).
+        Re-ranks the visit's usable access points from the passenger's chosen wait spot and
         move conditions. Routes the conditions rule out (no route, stroller impossible, stairs) get excludedReason
         and go last; the rest put covered routes first in rain or with indoorOnly, step-free routes first with luggage,
-        then the shortest walk. Without a chosen wait spot it falls back to the facility weather ranking.
+        then the shortest walk. Without a chosen wait spot it falls back to the weather/walk ranking (past ratings
+        are not applied) and excludedReason/walkMinutes are omitted.
       responses:
         '200':
           description: Weather and ranking.
@@ -183,7 +186,8 @@ paths:
         COMPLETED/CANCELLED. The server builds the message and link itself (PASSENGER_WEB_URL), so
         clients cannot send arbitrary text. The number is not stored; only the masked number is
         returned. Same requestId does not send twice. At most 5 messages per visit (429).
-        SMS_PROVIDER=console (default) only prints the message for local development.
+        SMS_PROVIDER=console (default) only prints the message for local development; no real SMS
+        provider is connected yet. Retry memory and the per-visit count live in server memory.
       requestBody:
         required: true
         content:
@@ -195,6 +199,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InviteResult' }
+        '429': { $ref: '#/components/responses/Error' }   # TOO_MANY_INVITES: more than 5 messages for this visit
+        '502': { $ref: '#/components/responses/Error' }   # SMS_FAILED: the SMS provider failed
         default: { $ref: '#/components/responses/Error' }
   /api/history:
     get:
@@ -234,7 +240,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/VisitSnapshot' }
     Error:
-      description: 400 invalid input, 403 wrong role, 404 unknown link, 409 stale/conflicting state, 410 expired link, 500 internal failure.
+      description: 400 invalid input, 403 wrong role, 404 unknown link, 409 stale/conflicting state, 410 expired link, 429 too many invites, 500 internal failure, 502 SMS provider failure.
       content:
         application/json:
           schema:

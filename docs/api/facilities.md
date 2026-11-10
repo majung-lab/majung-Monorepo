@@ -22,7 +22,7 @@ curl http://localhost:4000/health
 
 ## GET /api/facilities
 
-전체 시설과 각 시설의 장소(AccessPoint) 목록을 조회합니다. 차량 앱이 방문을 만들기 전에 시설과 장소를 고를 때 씁니다. 인증이 필요 없습니다.
+전체 시설과 각 시설의 장소(AccessPoint), 대기 장소(waitSpots) 목록을 조회합니다. 차량 앱이 방문을 만들기 전에 시설과 장소를 고를 때 씁니다. 인증이 필요 없습니다.
 
 **요청:** 파라미터 없음
 
@@ -37,6 +37,11 @@ curl http://localhost:4000/health
     "lat": 37.54,
     "lng": 127.22,
     "dataStatus": "EXAMPLE",
+    "waitSpots": [
+      { "id": "1", "name": "1층 서문 로비", "floor": "1F", "description": "서문 안쪽, 의자 있음" },
+      { "id": "2", "name": "1층 북문 로비", "floor": "1F", "description": "북문 안쪽, 비 안 맞음" },
+      { "id": "3", "name": "2층 가족휴게실", "floor": "2F", "description": "수유실·기저귀 교환대" }
+    ],
     "accessPoints": [
       {
         "id": "1",
@@ -48,7 +53,11 @@ curl http://localhost:4000/health
         "description": "1층 서문 로비 · 서문 안쪽, 의자 있음 · 서문 로비 → 서문 구역, 야외 20m · 우회전 진입, 정차 3분",
         "waitSpot": { "name": "1층 서문 로비", "floor": "1F", "description": "서문 안쪽, 의자 있음" },
         "walkMinutes": 2,
-        "covered": false
+        "covered": false,
+        "waitSpots": [
+          { "id": "1", "name": "1층 서문 로비", "floor": "1F", "description": "서문 안쪽, 의자 있음", "walkMinutes": 2, "covered": false },
+          { "id": "3", "name": "2층 가족휴게실", "floor": "2F", "description": "수유실·기저귀 교환대", "walkMinutes": 6, "covered": false }
+        ]
       },
       {
         "id": "3",
@@ -60,7 +69,8 @@ curl http://localhost:4000/health
         "description": "승하차 금지 구역 (후보 제외용)",
         "waitSpot": null,
         "walkMinutes": null,
-        "covered": false
+        "covered": false,
+        "waitSpots": []
       }
     ]
   }
@@ -74,7 +84,9 @@ curl http://localhost:4000/health
 - 운영 중인 장소(`active`)만 나옵니다.
 - `allowed: false`인 장소는 화면에 보여 줄 수는 있지만 방문 장소로 고를 수 없습니다. 고르면 `INVALID_ACCESS_POINT` 에러가 납니다.
 - 방문 모드에 따라 고를 수 있는 장소 종류가 다릅니다. `PICKUP`·`DROPOFF`는 `kind: "PICKUP"`, `PARK`는 `kind: "PARKING_ENTRANCE"`만 고를 수 있습니다.
-- 기본으로 들어 있는 시설은 "예시 쇼핑몰"(ID 1, 장소 1~4)과 "예시 미술관"(ID 2, 장소 5~6)입니다. DB의 시설 테이블이 비어 있을 때만 이 예시 데이터가 들어갑니다.
+- `facility.waitSpots`는 시설의 대기 장소 전부이고, `accessPoints[].waitSpots`는 그 장소까지 동선이 있는 대기 장소만 가까운 순으로 담습니다.
+- 날씨와 추천 순서는 [GET /api/facilities/{id}/weather](weather.md#get-apifacilitiesidweather)로 따로 조회합니다.
+- 기본으로 들어 있는 시설은 "예시 쇼핑몰"(ID 1, 장소 1~4, 대기 장소 1~3)과 "예시 미술관"(ID 2, 장소 5~6, 대기 장소 4)입니다. DB의 시설 테이블이 비어 있을 때만 이 예시 데이터가 들어갑니다.
 
 ```bash
 curl http://localhost:4000/api/facilities

@@ -2,7 +2,7 @@ package com.majung.vehicle.domain.model
 
 /**
  * 검색 결과 시설.
- * registered = 시설 데이터(data/facilities)에 있음. 없으면 일반 길안내만.
+ * registered = 서버 시설 데이터(DB)에 있음. 없으면 일반 길안내만.
  * pickupZoneVerified = 승하차 구역까지 현장 확인됨.
  */
 data class Place(

@@ -60,7 +60,8 @@ curl -s -X PATCH -H "$J" -d '{"requestId":"wt-2","version":1,"passengerReadiness
 ```
 
 - `$PT`(동승자 토큰)로 호출했으니 동승자 역할입니다.
-- 준비 상태를 `HEADING_OUT`(로비로 이동 중)으로 바꾸고 현재 위치를 보냅니다.
+- 준비 상태를 `HEADING_OUT`(로비로 나가는 중)으로 바꾸고 현재 위치를 보냅니다.
+- 실제 동승자 웹은 `SEEN`(링크 엶) → `READY`("준비됐어요") → `HEADING_OUT` → `AT_LOBBY`(로비 도착) 순서로 보내지만, 서버는 순서를 검사하지 않아서 여기서는 바로 `HEADING_OUT`을 보냅니다. [값의 의미](models.md#passengerreadiness-동승자-준비-상태)
 - 응답의 `visit.version`이 `2`로 올라갑니다.
 
 ## 3. 운전자 출발
