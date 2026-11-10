@@ -287,7 +287,18 @@ class VehicleViewModel @JvmOverloads constructor(
     fun publishLocation(location: Location) {
         lastLocation = location
         if (snapshot?.visit?.phase !in listOf("PREPARING", "MOVING", "ARRIVED") || busy) return
-        run { sendLocation(location) }
+        // 위치는 뒤에서 계속 보낸다. 가족이 대기 지점·준비 상태를 바꿔 버전이 엇갈려도 운전자에게 경고하지 않고
+        // 최신 상태로 한 번 더 보낸다. 그래도 실패하면 다음 위치 갱신 때 다시 보낸다
+        scope.launch {
+            lock.withLock {
+                for (attempt in 0..1) {
+                    try { sendLocation(location); return@withLock }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: ApiException) { if (e.status != 409 || attempt == 1) return@withLock; refreshVisit() }
+                    catch (_: Exception) { return@withLock }
+                }
+            }
+        }
     }
 
     private suspend fun sendLocation(location: Location) {
