@@ -23,6 +23,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,25 +69,26 @@ fun ReviewScreen(
     val reasons = remember { mutableStateListOf<String>() }
 
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp, bottom = 28.dp)) {
-        Column(Modifier.weight(1f)) {
+        // 큰 Pleos 화면에서는 왼쪽 영역이 좁아진다: 고정 폭 대신 영역 폭을 쓰고, 넘치면 스크롤
+        Column(Modifier.weight(0.6f).padding(end = 28.dp).verticalScroll(rememberScrollState())) {
             BrandBar(context)
             Text(kicker, Modifier.padding(top = 20.dp), Ink.sub, 18.sp)
-            Text("$pointName 어땠어요?", Modifier.padding(top = 8.dp), Ink.text, 38.sp, fontWeight = FontWeight.Bold, lineHeight = 46.sp)
-            Row(Modifier.padding(top = 14.dp).width(812.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("$pointName 어땠어요?", Modifier.padding(top = 8.dp), Ink.text, 34.sp, fontWeight = FontWeight.Bold, lineHeight = 42.sp)
+            Row(Modifier.padding(top = 14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Rating.entries.forEach { r ->
                     Row(
-                        Modifier.weight(1f).height(72.dp).selectable(rating == r, RoundedCornerShape(16.dp)).clickable { rating = r },
+                        Modifier.weight(1f).height(68.dp).selectable(rating == r, RoundedCornerShape(16.dp)).clickable { rating = r }.padding(horizontal = 6.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(painterResource(r.icon), null, tint = Color.Unspecified)
-                        Text(r.label, Modifier.padding(start = 12.dp), Ink.text, 22.sp, fontWeight = FontWeight.Bold)
+                        Text(r.label, Modifier.padding(start = 8.dp), Ink.text, 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
                 }
             }
             Text("어떤 점이 그랬나요? (여러 개 선택)", Modifier.padding(top = 16.dp), Ink.sub, 14.sp)
             FlowRow(
-                Modifier.padding(top = 16.dp).width(812.dp),
+                Modifier.padding(top = 14.dp).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -102,7 +105,7 @@ fun ReviewScreen(
                 }
             }
         }
-        Column(Modifier.width(360.dp).padding(top = 134.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(0.4f).padding(top = 120.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.fillMaxWidth().height(120.dp).selectable(false, RoundedCornerShape(16.dp)).padding(horizontal = 21.dp, vertical = 18.dp)) {
                 Text("이번 방문", color = Ink.sub, fontSize = 14.sp)
                 Text(summary, Modifier.padding(top = 6.dp), Ink.text, 18.sp, fontWeight = FontWeight.Medium)
