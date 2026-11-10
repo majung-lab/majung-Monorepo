@@ -36,10 +36,15 @@ data class VehicleStatusDto(val lat: Double? = null, val lng: Double? = null, va
 @Serializable
 data class PlaceRatingDto(val rating: Int, val tags: List<String>, val comment: String? = null)
 @Serializable
-data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null, val passengerWaitSpot: WaitSpotDto? = null)
-/** 동승자가 '지금 여기서 기다려요'로 고른 곳 */
+data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null, val passengerWaitSpot: WaitSpotDto? = null, val passengerConditions: MoveConditionsDto = MoveConditionsDto())
+/** 동승자가 '지금 여기 있어요'로 고른 곳. walkMinutes는 거기서 만날 곳까지, 동선 정보가 없으면 null */
 @Serializable
-data class WaitSpotDto(val id: String, val name: String, val floor: String? = null, val description: String = "", val walkMinutes: Int, val covered: Boolean = false)
+data class WaitSpotDto(val id: String, val name: String, val floor: String? = null, val description: String = "", val walkMinutes: Int? = null, val covered: Boolean = false)
+/** 동승자 이동 조건 */
+@Serializable
+data class MoveConditionsDto(val stroller: Boolean = false, val luggage: Boolean = false, val avoidStairs: Boolean = false, val indoorOnly: Boolean = false) {
+    val labels get() = listOfNotNull("유모차".takeIf { stroller }, "짐 많음".takeIf { luggage }, "계단 피하기".takeIf { avoidStairs }, "실내로만".takeIf { indoorOnly })
+}
 @Serializable
 data class VisitSession(val visit: VisitDto, val driverToken: String, val passengerToken: String)
 @Serializable

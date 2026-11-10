@@ -1,4 +1,4 @@
-import type { AccessPoint, RankedAccessPoint, Weather } from '@majung/shared';
+import type { AccessPoint, MoveConditions, RankedAccessPoint, Weather } from '@majung/shared';
 
 /** 날씨를 못 받아도 방문은 만들 수 있어야 하므로 실패는 null로 돌려준다. */
 export type WeatherLookup = (lat: number, lng: number) => Promise<Weather | null>;
@@ -155,5 +155,52 @@ export function rankAccessPoints(points: AccessPoint[], weather: Weather | null,
     else if (i === 0 && p.walkMinutes !== null && p.walkMinutes === shortest) reason = '기다리는 곳에서 가장 가까워요';
     else if (i === 0 && sorted.some((q) => liked(q) === 2)) reason = '지난번 별로였던 곳 대신 추천해요';
     return { accessPointId: p.id, recommended: i === 0, reason };
+  });
+}
+
+/** 대기 지점 → 승하차 구역 동선 한 줄 (시설 데이터의 connection) */
+export type RouteLink = { walkMinutes: number; covered: boolean; noStairs: boolean; strollerOk: boolean };
+/** 동승자가 고른 대기 지점에서 각 승하차 구역(id)까지의 동선과 이동 조건 */
+export type PassengerRoute = { links: ReadonlyMap<string, RouteLink>; conditions: MoveConditions };
+
+/**
+ * 동승자 추천. 고른 대기 지점에서 갈 수 없는 곳(동선 없음, 유모차 불가, 계단)은 제외 이유와 함께 맨 뒤로.
+ * 나머지는 1) 비·실내 선호면 지붕·실내 연결 먼저 2) 짐이 많으면 계단 없는 곳 먼저 3) 걷는 시간 짧은 순.
+ */
+export function rankForPassenger(points: AccessPoint[], weather: Weather | null, route: PassengerRoute): RankedAccessPoint[] {
+  const { stroller, luggage, avoidStairs, indoorOnly } = route.conditions;
+  const wet = !!weather?.rainSoon;
+  const excluded = (p: AccessPoint): string | null => {
+    const link = route.links.get(p.id);
+    if (!link) return '기다리는 곳에서 가는 동선 정보가 없어요';
+    if (stroller && !link.strollerOk) return '유모차로 갈 수 없는 동선이에요';
+    if (stroller && !link.noStairs) return '계단이 있어 유모차로는 돌아가야 해요';
+    if (avoidStairs && !link.noStairs) return '가는 길에 계단이 있어요';
+    return null;
+  };
+  const sheltered = wet || indoorOnly;
+  const score = (p: AccessPoint) => {
+    const link = route.links.get(p.id);
+    return [excluded(p) ? 1 : 0, sheltered && !link?.covered ? 1 : 0, luggage && !link?.noStairs ? 1 : 0, link?.walkMinutes ?? Number.MAX_SAFE_INTEGER, Number(p.id)];
+  };
+  const sorted = [...points].sort((a, b) => { const x = score(a), y = score(b); return x.reduce((d, v, i) => d || v - y[i], 0); });
+  let first = true;
+  return sorted.map((p) => {
+    const link = route.links.get(p.id);
+    const out = excluded(p);
+    const recommended = !out && first;
+    if (recommended) first = false;
+    let reason: string | null = null;
+    if (!out && link) {
+      const flatNeeded = stroller || luggage || avoidStairs;
+      const parts = [
+        flatNeeded && link.noStairs ? '계단 없이' : null,
+        link.covered && sheltered ? (wet ? '비 맞지 않고' : '실내로') : null,
+      ].filter(Boolean);
+      const way = parts.length ? `${parts.join(', ')} 걸어서 ${link.walkMinutes}분` : `걸어서 ${link.walkMinutes}분`;
+      const warn = wet && !link.covered ? ' · 지붕이 없어 비를 맞을 수 있어요' : indoorOnly && !link.covered ? ' · 실외 구간이 있어요' : '';
+      reason = way + warn;
+    }
+    return { accessPointId: p.id, recommended, reason, excludedReason: out, walkMinutes: link?.walkMinutes ?? null };
   });
 }

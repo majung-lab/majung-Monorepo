@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { FacilityWeather, VisitMode } from '@majung/shared';
 import type { VisitRepository } from '../visit/visit.repository.ts';
 import { HttpError } from '../../common/errors.ts';
-import { rankAccessPoints, type WeatherLookup } from './weather.ts';
+import { rankAccessPoints, rankForPassenger, type WeatherLookup } from './weather.ts';
 
 /** C04 지점 선택·동승자 화면에서 쓰는 시설 날씨와 추천 순서. 시설 정보처럼 공개 데이터라 토큰이 필요 없다 */
 export async function weatherRoutes(app: FastifyInstance, { visits, weather }: { visits: VisitRepository; weather: WeatherLookup }) {
@@ -19,5 +19,14 @@ export async function weatherRoutes(app: FastifyInstance, { visits, weather }: {
     const current = await weather(facility.lat, facility.lng);
     const ratings = req.query.driverDeviceId ? visits.pastRatings(req.query.driverDeviceId, Number(facility.id)) : new Map<string, number>();
     return { weather: current, ranking: rankAccessPoints(facility.accessPoints.filter((p) => p.allowed && p.kind === kind), current, ratings) };
+  });
+
+  /** 동승자 화면: 고른 대기 지점·이동 조건·날씨로 만날 곳을 다시 추천한다. 대기 지점을 안 골랐으면 날씨만 본다 */
+  app.get<{ Params: { token: string } }>('/visits/:token/recommendation', async (req): Promise<FacilityWeather> => {
+    const { facility, mode, links, conditions } = visits.passengerRoute(req.params.token);
+    const kind = mode === 'PARK' ? 'PARKING_ENTRANCE' : 'PICKUP';
+    const points = facility.accessPoints.filter((p) => p.allowed && p.kind === kind);
+    const current = await weather(facility.lat, facility.lng);
+    return { weather: current, ranking: links ? rankForPassenger(points, current, { links, conditions }) : rankAccessPoints(points, current) };
   });
 }

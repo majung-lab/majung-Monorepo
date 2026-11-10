@@ -142,6 +142,23 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snapshot' }
         default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/recommendation:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    get:
+      operationId: getRecommendation
+      description: >
+        Passenger view. Re-ranks the visit's usable access points from the passenger's chosen wait spot and
+        move conditions. Routes the conditions rule out (no route, stroller impossible, stairs) get excludedReason
+        and go last; the rest put covered routes first in rain or with indoorOnly, step-free routes first with luggage,
+        then the shortest walk. Without a chosen wait spot it falls back to the facility weather ranking.
+      responses:
+        '200':
+          description: Weather and ranking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FacilityWeather' }
+        default: { $ref: '#/components/responses/Error' }
   /api/visits/{token}/rating:
     parameters:
       - { $ref: '#/components/parameters/Token' }
@@ -294,6 +311,8 @@ components:
         accessPointId: { type: string }
         recommended: { type: boolean }
         reason: { type: [string, 'null'] }
+        excludedReason: { type: [string, 'null'], description: 'Recommendation endpoint only. Why the chosen wait spot and conditions rule this point out.' }
+        walkMinutes: { type: [integer, 'null'], description: 'Recommendation endpoint only. Walk from the chosen wait spot.' }
     FacilityWeather:
       type: object
       required: [weather, ranking]
@@ -305,7 +324,7 @@ components:
           items: { $ref: '#/components/schemas/RankedAccessPoint' }
     Facility:
       type: object
-      required: [id, name, address, lat, lng, accessPoints, dataStatus]
+      required: [id, name, address, lat, lng, accessPoints, waitSpots, dataStatus]
       properties:
         id: { type: string }
         name: { type: string }
@@ -315,7 +334,28 @@ components:
         accessPoints:
           type: array
           items: { $ref: '#/components/schemas/AccessPoint' }
+        waitSpots:
+          type: array
+          description: Every place inside the facility where people wait (lobbies, lounges).
+          items: { $ref: '#/components/schemas/FacilityWaitSpot' }
         dataStatus: { type: string, enum: [EXAMPLE] }
+    FacilityWaitSpot:
+      type: object
+      required: [id, name, floor, description]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        floor: { type: [string, 'null'] }
+        description: { type: string }
+    MoveConditions:
+      type: object
+      additionalProperties: false
+      required: [stroller, luggage, avoidStairs, indoorOnly]
+      properties:
+        stroller: { type: boolean }
+        luggage: { type: boolean }
+        avoidStairs: { type: boolean }
+        indoorOnly: { type: boolean }
     MeetingProposal:
       type: object
       required: [id, visitId, proposedBy, accessPointId, fromAccessPointId, baseVersion, status, createdAt, expiresAt]
@@ -339,7 +379,7 @@ components:
         comment: { type: [string, 'null'] }
     VisitSnapshot:
       type: object
-      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, rating]
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, passengerConditions, rating]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         role: *role
@@ -364,10 +404,17 @@ components:
             lng: *lng
             recordedAt: { type: string, format: date-time }
         passengerWaitSpot:
-          description: Where the passenger said they are waiting. Cleared when the meeting point changes and no route remains.
+          description: Where the passenger said they are waiting, kept when the meeting point changes. walkMinutes and covered describe the route to the current meeting point; walkMinutes is null when no route is known.
           oneOf:
-            - { $ref: '#/components/schemas/WaitSpotOption' }
+            - allOf:
+                - { $ref: '#/components/schemas/FacilityWaitSpot' }
+                - type: object
+                  required: [walkMinutes, covered]
+                  properties:
+                    walkMinutes: { type: [integer, 'null'] }
+                    covered: { type: boolean }
             - { type: 'null' }
+        passengerConditions: { $ref: '#/components/schemas/MoveConditions' }
         rating:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
@@ -438,7 +485,10 @@ components:
         passengerWaitSpotId:
           type: [string, 'null']
           pattern: '^[1-9][0-9]*$'
-          description: Passenger-only. One of the confirmed access point's waitSpots; null clears it.
+          description: Passenger-only. One of the facility's waitSpots; null clears it.
+        passengerConditions:
+          allOf: [{ $ref: '#/components/schemas/MoveConditions' }]
+          description: Passenger-only. Replaces all four move conditions.
         passengerLocation:
           type: [object, 'null']
           additionalProperties: false

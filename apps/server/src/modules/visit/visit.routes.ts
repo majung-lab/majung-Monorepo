@@ -28,6 +28,7 @@ export async function visitRoutes(app: FastifyInstance, { visits, placeName, wea
     parkingFloor:nullable({type:'string',minLength:1,maxLength:32}),
     passengerLocation:nullable(object({lat,lng},['lat','lng'])),
     passengerWaitSpotId:nullable(id),
+    passengerConditions:object({stroller:{type:'boolean'},luggage:{type:'boolean'},avoidStairs:{type:'boolean'},indoorOnly:{type:'boolean'}},['stroller','luggage','avoidStairs','indoorOnly']),
     vehicle:object({lat:nullable(lat),lng:nullable(lng),etaSec:nullable({type:'integer',minimum:0,maximum:86400}),navResult:{enum:['set','failed']}},['lat','lng','etaSec']),
   }),minProperties:3}}},async req=>visits.update(req.params.token,req.body));
   app.post<{Params:TokenParams;Body:CreateProposalRequest}>('/visits/:token/proposals',{schema:{body:{...mutation({accessPointId:id,location:object({lat,lng},['lat','lng']),reason:{type:'string',maxLength:500}}),oneOf:[{required:['accessPointId']},{required:['location']}]}}},async req=>{

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { AccessPoint } from '@majung/shared';
 import { openDb } from '../src/db/index.ts';
 import { buildApp } from '../src/app.ts';
-import { baseTime, demoWeather, rankAccessPoints, summarize, toGrid, type ForecastItem } from '../src/modules/weather/weather.ts';
+import { baseTime, demoWeather, rankAccessPoints, rankForPassenger, summarize, toGrid, type ForecastItem } from '../src/modules/weather/weather.ts';
 
 test('위경도를 기상청 격자로 바꾼다 (서울시청 = 60,127)', () => {
   assert.deepEqual(toGrid(37.5665, 126.978), { nx: 60, ny: 127 });
@@ -56,6 +56,18 @@ test('비가 오면 지붕 있는 곳이 먼저, 아니면 가까운 곳이 먼�
   assert.equal(wet[0].recommended, true);
   assert.match(wet[0].reason!, /지붕 아래/);
   assert.match(wet[1].reason!, /비를 맞을 수/);
+});
+
+test('동승자 추천: 비가 오면 실내 연결을 먼저, 지붕 없는 동선은 경고한다', async () => {
+  const points = [point('1', null, false), point('2', null, false)];
+  const links = new Map([['1', { walkMinutes: 2, covered: false, noStairs: true, strollerOk: true }], ['2', { walkMinutes: 4, covered: true, noStairs: true, strollerOk: true }]]);
+  const conditions = { stroller: true, luggage: false, avoidStairs: false, indoorOnly: false };
+  const wet = rankForPassenger(points, await demoWeather('rain')(0, 0), { links, conditions });
+  assert.deepEqual(wet.map((r) => r.accessPointId), ['2', '1']);
+  assert.equal(wet[0].reason, '계단 없이, 비 맞지 않고 걸어서 4분');
+  assert.equal(wet[1].reason, '계단 없이 걸어서 2분 · 지붕이 없어 비를 맞을 수 있어요');
+  const dry = rankForPassenger(points, null, { links, conditions });
+  assert.deepEqual(dry.map((r) => r.accessPointId), ['1', '2']);
 });
 
 test('시설 날씨 API와 방문 기록에 날씨가 남는다', async () => {

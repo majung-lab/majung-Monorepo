@@ -1,6 +1,6 @@
 // W01 방문 카드 · W05 변경 결과 알림
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Weather } from '@majung/shared';
+import type { FacilityWeather, MoveConditions } from '@majung/shared';
 import { useNavigate } from 'react-router-dom';
 import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
@@ -14,12 +14,13 @@ import swap from '../../assets/icons/swap.svg';
 
 type MapView = 'me' | 'car' | 'meet' | 'all';
 const STEPS = ['출발 준비', '이동 중', '도착'];
+const CONDITIONS: [keyof MoveConditions, string][] = [['stroller', '유모차'], ['luggage', '짐 많음'], ['avoidStairs', '계단 피하기'], ['indoorOnly', '실내로만']];
 const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
 export default function VisitPage() {
   const navigate = useNavigate();
   const { snapshot, token, busy, position: me, positionError, mutate } = useVisit();
-  const { visit, facility, vehicle, proposals, passengerWaitSpot } = snapshot;
+  const { visit, facility, vehicle, proposals, passengerWaitSpot, passengerConditions: conditions } = snapshot;
   const now = useNow();
   const meet = facility.accessPoints.find((p) => p.id === visit.confirmedAccessPointId)!;
   const meetPos = pointPosition(meet);
@@ -57,15 +58,22 @@ export default function VisitPage() {
     ...(me ? [{ pos: me, kind: 'me' as const }] : []),
   ], [meet.lat, meet.lng, proposed?.id, vehicle?.lat, vehicle?.lng, me]);
   const readiness = visit.passengerReadiness;
-  // 만날 곳 날씨: 10분마다 다시 받는다. 못 받으면 줄을 숨긴다
-  const [weather, setWeather] = useState<Weather | null>(null);
+  // 날씨와 추천: 대기 지점·이동 조건·만날 곳이 바뀔 때, 그리고 10분마다 다시 받는다. 못 받으면 숨긴다
+  const [advice, setAdvice] = useState<FacilityWeather | null>(null);
+  const adviceKey = `${passengerWaitSpot?.id}|${JSON.stringify(conditions)}|${visit.confirmedAccessPointId}`;
   useEffect(() => {
     let live = true;
-    const load = () => void api.weather(facility.id).then((w) => { if (live) setWeather(w?.weather ?? null); });
+    const load = () => void api.recommendation(token).then((r) => { if (live) setAdvice(r); });
     load();
     const timer = setInterval(load, 10 * 60_000);
     return () => { live = false; clearInterval(timer); };
-  }, [facility.id]);
+  }, [token, adviceKey]);
+  const weather = advice?.weather ?? null;
+  const best = advice?.ranking.find((r) => r.recommended);
+  const bestPoint = best && facility.accessPoints.find((p) => p.id === best.accessPointId);
+  const here = advice?.ranking.find((r) => r.accessPointId === meet.id);
+  // 고른 대기 지점에서 만날 곳까지 동선이 있으면 그 동선의 지붕 여부로 안내한다
+  const meetCovered = passengerWaitSpot?.walkMinutes != null ? passengerWaitSpot.covered : meet.covered;
 
   return (
     <main className="screen">
@@ -93,7 +101,7 @@ export default function VisitPage() {
         <p className="data-notice">{facility.name} · 예시 시설·승하차 지점 데이터</p>
         {weather && <p className={`weather-note${weather.rainSoon ? ' wet' : ''}`} role="note">
           {weather.rainSoon ? '☂ ' : ''}{weather.summary}
-          {weather.rainSoon && !arrived && <span>{meet.covered ? ' · 만날 곳은 지붕이 있어요' : ' · 만날 곳에 지붕이 없어요. 우산을 챙겨 주세요'}</span>}
+          {weather.rainSoon && !arrived && <span>{meetCovered ? ' · 만날 곳은 지붕이 있어요' : ' · 만날 곳에 지붕이 없어요. 우산을 챙겨 주세요'}</span>}
         </p>}
         <div className="eta">
           <div>
@@ -113,19 +121,39 @@ export default function VisitPage() {
             <img src={swap} alt="" width={14} height={14} />{mine ? '응답 대기 중' : '위치 바꾸기'}
           </button>
         </div>
-        {!arrived && meet.waitSpots.length > 0 && <div className="wait-spots">
-          <p className="place-label">지금 어디서 기다리세요? · 운전자 화면에 보여요</p>
+        {!arrived && facility.waitSpots.length > 0 && <div className="wait-spots">
+          <p className="place-label">지금 어디 계세요? · 운전자 화면에 보여요</p>
           <div className="wait-spot-list">
-            {meet.waitSpots.map((w) => {
+            {facility.waitSpots.map((w) => {
               const chosen = passengerWaitSpot?.id === w.id;
+              const toMeet = meet.waitSpots.find((x) => x.id === w.id);
               return <button key={w.id} aria-pressed={chosen} disabled={busy}
                 onClick={() => void mutate((s) => api.waitSpot(token, s.visit.version, chosen ? null : w.id))}>
                 <span className="wait-spot-name">{w.name}</span>
-                <span className="wait-spot-meta">차까지 걸어서 {w.walkMinutes}분{w.covered ? ' · 지붕 있음' : ''}</span>
+                <span className="wait-spot-meta">{toMeet ? `만날 곳까지 걸어서 ${toMeet.walkMinutes}분${toMeet.covered ? ' · 지붕 있음' : ''}` : '만날 곳까지 동선 정보 없음'}</span>
               </button>;
             })}
           </div>
+          <p className="place-label conditions-label">이동 조건 · 맞는 동선을 찾아 드려요</p>
+          <div className="conditions">
+            {CONDITIONS.map(([key, label]) => <button key={key} aria-pressed={conditions[key]} disabled={busy}
+              onClick={() => void mutate((s) => api.conditions(token, s.visit.version, { ...s.passengerConditions, [key]: !s.passengerConditions[key] }))}>{label}</button>)}
+          </div>
         </div>}
+        {!arrived && passengerWaitSpot && here && (best && bestPoint && best.accessPointId !== meet.id
+          ? <div className="advice" role="status">
+              <p className="advice-label">{passengerWaitSpot.name}에서는 여기가 더 편해요</p>
+              <p className="advice-name">{bestPoint.name}</p>
+              <p className="advice-reason">{best.reason}</p>
+              <p className="advice-sub">지금 만날 곳({meet.name}) · {here.excludedReason ?? here.reason}</p>
+              <button className="btn-outline-accent" disabled={busy || !!mine}
+                onClick={() => void mutate((s) => api.propose(token, s.visit.version, best.accessPointId, `${passengerWaitSpot.name}에서 ${best.reason}`))}>
+                {mine ? '응답 대기 중' : '여기로 바꾸자고 하기'}
+              </button>
+            </div>
+          : <p className={`advice-ok${here.excludedReason ? ' warn' : ''}`} role="status">
+              {here.excludedReason ? `지금 만날 곳 · ${here.excludedReason}` : `지금 만날 곳이 가장 편해요 · ${here.reason}`}
+            </p>)}
         <p className="location-note" role="status">{positionError || (me ? '내 실제 위치를 차량에 공유하고 있어요.' : '위치 권한을 허용하면 차량에 내 위치를 공유해요.')}{stale ? ' 차량 위치가 1분 이상 갱신되지 않았어요.' : !car ? ' 차량 위치는 아직 전송되지 않았어요.' : ''}</p>
         {mine && <button className="btn-cancel" onClick={() => navigate('move')}>보낸 제안 확인</button>}
         <button className="btn-primary" disabled={busy || readiness === 'HEADING_OUT'} onClick={() => void mutate((s) => api.readiness(token, s.visit.version, readiness === 'READY' ? 'HEADING_OUT' : 'READY'))}>

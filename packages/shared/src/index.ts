@@ -58,6 +58,10 @@ export interface RankedAccessPoint {
   recommended: boolean;
   /** 추천·주의 이유 한 줄. null이면 지점 설명을 그대로 쓴다 */
   reason: string | null;
+  /** 동승자 추천에서만: 고른 대기 지점·이동 조건으로는 갈 수 없는 이유. 있으면 추천 대상이 아니다 */
+  excludedReason?: string | null;
+  /** 동승자 추천에서만: 고른 대기 지점에서 이 지점까지 걷는 시간 */
+  walkMinutes?: number | null;
 }
 export interface FacilityWeather {
   /** 날씨를 못 받으면 null (키 없음, 기상청 응답 실패) */
@@ -72,8 +76,15 @@ export interface Facility {
   lat: number;
   lng: number;
   accessPoints: AccessPoint[];
+  /** 시설 안에서 사람이 기다리는 곳 전부 (동승자가 '지금 여기 있어요'로 고른다) */
+  waitSpots: FacilityWaitSpot[];
   dataStatus: 'EXAMPLE';
 }
+export interface FacilityWaitSpot { id: string; name: string; floor: string | null; description: string }
+/** 동승자 이동 조건. 대기 지점에서 승하차 구역까지의 동선을 고를 때 쓴다 */
+export interface MoveConditions { stroller: boolean; luggage: boolean; avoidStairs: boolean; indoorOnly: boolean }
+/** 동승자가 고른 대기 지점과, 거기서 지금 만날 곳까지의 동선. 동선 정보가 없으면 walkMinutes가 null */
+export interface PassengerWaitSpot extends FacilityWaitSpot { walkMinutes: number | null; covered: boolean }
 export interface MeetingProposal {
   id: string;
   visitId: string;
@@ -102,8 +113,9 @@ export interface VisitSnapshot {
   proposals: MeetingProposal[];
   vehicle: VehicleStatus | null;
   passengerLocation: PassengerLocation | null;
-  /** 동승자가 '지금 여기서 기다려요'로 고른 곳. 만날 곳이 바뀌어 동선이 없어지면 null로 돌아간다 */
-  passengerWaitSpot: WaitSpotOption | null;
+  /** 동승자가 '지금 여기 있어요'로 고른 곳. 만날 곳이 바뀌어도 남는다 */
+  passengerWaitSpot: PassengerWaitSpot | null;
+  passengerConditions: MoveConditions;
   rating: PlaceRating | null;
 }
 export interface CreateVisitRequest {
@@ -122,8 +134,10 @@ export interface UpdateVisitRequest extends MutationRequest {
   phase?: VisitPhase;
   passengerReadiness?: PassengerReadiness;
   passengerLocation?: { lat: number; lng: number } | null;
-  /** Passenger-only. 만날 곳(confirmedAccessPointId)의 waitSpots 중 하나, null이면 지움 */
+  /** Passenger-only. 시설의 waitSpots 중 하나, null이면 지움 */
   passengerWaitSpotId?: string | null;
+  /** Passenger-only */
+  passengerConditions?: MoveConditions;
   parkingFloor?: string | null;
   vehicle?: { lat: number | null; lng: number | null; etaSec: number | null; navResult?: 'set' | 'failed' };
 }

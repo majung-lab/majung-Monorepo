@@ -17,6 +17,7 @@ import com.majung.vehicle.BuildConfig
 import com.majung.vehicle.core.uxrestriction.UxRestrictionWatcher
 import com.majung.vehicle.data.remote.dto.AccessPointDto
 import com.majung.vehicle.data.remote.dto.RankedAccessPointDto
+import com.majung.vehicle.data.remote.dto.VisitSnapshot
 import com.majung.vehicle.domain.model.*
 import com.majung.vehicle.ui.arrival.*
 import com.majung.vehicle.ui.destination.DestinationScreen
@@ -154,7 +155,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 etaMin = snapshot?.vehicle?.etaSec?.let { ceil(it / 60.0).toInt() },
                 family = if (selectedMode != VisitMode.PICKUP || driving) null else FamilyStatus(when (visit?.passengerReadiness) {
                     "READY" -> "준비됐어요"; "HEADING_OUT" -> "나오는 중이에요"; "SEEN" -> "링크를 열었어요"; else -> "아직 링크를 안 열었어요"
-                }, snapshot?.passengerWaitSpot?.let { "${it.name}에서 대기 · 걸어서 ${it.walkMinutes}분" } ?: "동승자 기기에서 보낸 상태"),
+                }, familyDetail(snapshot) ?: "동승자 기기에서 보낸 상태"),
                 weather = model.placeWeather?.weather?.let { "도착지 날씨 · ${it.summary}" }, rainy = model.placeWeather?.weather?.rainSoon == true,
                 heading = if (visit?.phase == "ARRIVED") "목적지에 도착했어요" else when (selectedMode) { VisitMode.PICKUP -> "픽업 장소로 가는 중"; VisitMode.DROPOFF -> "내릴 곳으로 가는 중"; VisitMode.PARK -> "목적지로 가는 중" },
                 onArrived = { if (visit?.phase == "ARRIVED") screen = Screen.ARRIVAL else model.phase("ARRIVED") { screen = Screen.ARRIVAL } },
@@ -187,7 +188,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 VisitMode.PICKUP -> PickupArrivalScreen(context, point?.name.orEmpty(), listOf("동승자"), formatTime(visit?.updatedAt), null,
                     onBoarded = { model.phase("COMPLETED") { screen = Screen.REVIEW } }, onWaiting = { screen = Screen.MOVING },
                     weather = arrivalWeather, rainy = wet,
-                    waitingAt = snapshot?.passengerWaitSpot?.let { "${it.name}에서 오는 중 · ${it.walkMinutes}분" })
+                    waitingAt = snapshot?.passengerWaitSpot?.let { spot -> "${spot.name}에서 오는 중" + (spot.walkMinutes?.let { " · ${it}분" } ?: "") })
                 }
             }
             Screen.REVIEW -> ReviewScreen(context, point?.name.orEmpty(), listOfNotNull("방문 완료 · ${formatTime(visit?.completedAt ?: visit?.updatedAt)}", model.placeWeather?.weather?.let(::weatherWord)).joinToString(" · "), onDone = { rating, tags ->
@@ -253,4 +254,15 @@ private fun rankedPoints(points: List<AccessPointDto>, ranking: List<RankedAcces
 private fun weatherWord(w: com.majung.vehicle.data.remote.dto.WeatherDto): String {
     val word = when (w.condition) { "RAIN" -> "비"; "SNOW" -> "눈"; else -> if (w.rainSoon) "비 예보" else if (w.condition == "CLOUDY") "흐림" else "맑음" }
     return w.tempC?.let { "$word · $it°" } ?: word
+}
+
+/** 가족 카드 둘째 줄: "2층 가족휴게실에서 대기 · 걸어서 4분 · 유모차 · 계단 피하기" */
+private fun familyDetail(snapshot: VisitSnapshot?): String? {
+    val parts = mutableListOf<String>()
+    snapshot?.passengerWaitSpot?.let { spot ->
+        parts += "${spot.name}에서 대기"
+        parts += spot.walkMinutes?.let { "걸어서 ${it}분" } ?: "만날 곳까지 동선 정보 없음"
+    }
+    parts += snapshot?.passengerConditions?.labels.orEmpty()
+    return parts.joinToString(" · ").ifEmpty { null }
 }
