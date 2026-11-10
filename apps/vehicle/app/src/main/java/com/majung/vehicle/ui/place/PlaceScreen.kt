@@ -27,12 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.majung.vehicle.R
 import com.majung.vehicle.domain.model.AccessPoint
 import com.majung.vehicle.domain.model.SAMPLE_ACCESS_POINTS
+import com.majung.vehicle.domain.model.SAMPLE_WEATHER
 import com.majung.vehicle.domain.model.VisitMode
 import com.majung.vehicle.ui.theme.BackHeader
 import com.majung.vehicle.ui.theme.Ink
@@ -47,6 +49,10 @@ fun PlaceScreen(
     mode: VisitMode,
     onBack: () -> Unit = {},
     points: List<AccessPoint> = SAMPLE_ACCESS_POINTS,
+    /** 시설 날씨 한 줄 (예: "15시부터 비 · 강수확률 70%"). null이면 날씨 대신 '예시 시설 데이터' */
+    weather: String? = SAMPLE_WEATHER,
+    /** 비·눈이 오거나 곧 옴 → 비 아이콘 */
+    rainy: Boolean = true,
     onConfirm: (AccessPoint) -> Unit = {},
 ) {
     var selected by remember(points) { mutableStateOf(points.firstOrNull { it.recommended } ?: points.firstOrNull()) }
@@ -63,8 +69,8 @@ fun PlaceScreen(
                 Modifier.height(40.dp).clip(RoundedCornerShape(12.dp)).background(Ink.info).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_rain), null, tint = Color.Unspecified)
-                Text("예시 시설 데이터", Modifier.padding(start = 10.dp), Ink.text, 16.sp)
+                if (weather != null && rainy) Icon(painterResource(R.drawable.ic_rain), null, Modifier.padding(end = 10.dp), tint = Color.Unspecified)
+                Text(weather ?: "예시 시설 데이터", color = Ink.text, fontSize = 16.sp)
             }
         }
         Row(Modifier.padding(top = 78.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -84,7 +90,7 @@ private fun PointCard(point: AccessPoint, selected: Boolean, modifier: Modifier,
     } else {
         modifier.card(Ink.surface, 18)
     }
-    Column(box.height(168.dp).clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 22.dp)) {
+    Column(box.height(200.dp).clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 22.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(point.name, Modifier.weight(1f), Ink.text, 26.sp, fontWeight = FontWeight.Bold)
             if (point.recommended) {
@@ -99,6 +105,8 @@ private fun PointCard(point: AccessPoint, selected: Boolean, modifier: Modifier,
             point.reason,
             Modifier.padding(top = 6.dp),
             if (selected) Ink.accentBody else Ink.sub, 18.sp, lineHeight = 26.sp,
+            // 지점 설명이 길어도 태그가 밀려나지 않게 두 줄까지만
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             point.tags.forEach { Tag(it, if (selected) Ink.accentTag else Ink.tag) }

@@ -1,5 +1,6 @@
 // W01 방문 카드 · W05 변경 결과 알림
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Weather } from '@majung/shared';
 import { useNavigate } from 'react-router-dom';
 import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
@@ -18,7 +19,7 @@ const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { h
 export default function VisitPage() {
   const navigate = useNavigate();
   const { snapshot, token, busy, position: me, positionError, mutate } = useVisit();
-  const { visit, facility, vehicle, proposals } = snapshot;
+  const { visit, facility, vehicle, proposals, passengerWaitSpot } = snapshot;
   const now = useNow();
   const meet = facility.accessPoints.find((p) => p.id === visit.confirmedAccessPointId)!;
   const meetPos = pointPosition(meet);
@@ -56,6 +57,15 @@ export default function VisitPage() {
     ...(me ? [{ pos: me, kind: 'me' as const }] : []),
   ], [meet.lat, meet.lng, proposed?.id, vehicle?.lat, vehicle?.lng, me]);
   const readiness = visit.passengerReadiness;
+  // 만날 곳 날씨: 10분마다 다시 받는다. 못 받으면 줄을 숨긴다
+  const [weather, setWeather] = useState<Weather | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void api.weather(facility.id).then((w) => { if (live) setWeather(w?.weather ?? null); });
+    load();
+    const timer = setInterval(load, 10 * 60_000);
+    return () => { live = false; clearInterval(timer); };
+  }, [facility.id]);
 
   return (
     <main className="screen">
@@ -81,6 +91,10 @@ export default function VisitPage() {
       </KakaoMap>
       <section className="sheet">
         <p className="data-notice">{facility.name} · 예시 시설·승하차 지점 데이터</p>
+        {weather && <p className={`weather-note${weather.rainSoon ? ' wet' : ''}`} role="note">
+          {weather.rainSoon ? '☂ ' : ''}{weather.summary}
+          {weather.rainSoon && !arrived && <span>{meet.covered ? ' · 만날 곳은 지붕이 있어요' : ' · 만날 곳에 지붕이 없어요. 우산을 챙겨 주세요'}</span>}
+        </p>}
         <div className="eta">
           <div>
             <p className="sub">{arrived ? '운전자가 도착을 확인했어요' : visit.phase === 'PREPARING' ? '운전자가 출발을 준비하고 있어요' : '차가 오고 있어요'}</p>
@@ -99,6 +113,19 @@ export default function VisitPage() {
             <img src={swap} alt="" width={14} height={14} />{mine ? '응답 대기 중' : '위치 바꾸기'}
           </button>
         </div>
+        {!arrived && meet.waitSpots.length > 0 && <div className="wait-spots">
+          <p className="place-label">지금 어디서 기다리세요? · 운전자 화면에 보여요</p>
+          <div className="wait-spot-list">
+            {meet.waitSpots.map((w) => {
+              const chosen = passengerWaitSpot?.id === w.id;
+              return <button key={w.id} aria-pressed={chosen} disabled={busy}
+                onClick={() => void mutate((s) => api.waitSpot(token, s.visit.version, chosen ? null : w.id))}>
+                <span className="wait-spot-name">{w.name}</span>
+                <span className="wait-spot-meta">차까지 걸어서 {w.walkMinutes}분{w.covered ? ' · 지붕 있음' : ''}</span>
+              </button>;
+            })}
+          </div>
+        </div>}
         <p className="location-note" role="status">{positionError || (me ? '내 실제 위치를 차량에 공유하고 있어요.' : '위치 권한을 허용하면 차량에 내 위치를 공유해요.')}{stale ? ' 차량 위치가 1분 이상 갱신되지 않았어요.' : !car ? ' 차량 위치는 아직 전송되지 않았어요.' : ''}</p>
         {mine && <button className="btn-cancel" onClick={() => navigate('move')}>보낸 제안 확인</button>}
         <button className="btn-primary" disabled={busy || readiness === 'HEADING_OUT'} onClick={() => void mutate((s) => api.readiness(token, s.visit.version, readiness === 'READY' ? 'HEADING_OUT' : 'READY'))}>

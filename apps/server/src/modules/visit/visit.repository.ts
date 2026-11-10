@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { AccessPoint, CreateProposalRequest, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
+import type { AccessPoint, CreateProposalRequest, Weather, WaitSpotOption, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
 import type { Db } from '../../db/index.ts';
 import { HttpError } from '../../common/errors.ts';
+import { rankAccessPoints } from '../weather/weather.ts';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
@@ -39,6 +40,15 @@ export function createVisitRepository(db: Db) {
        JOIN wait_spot ws ON ws.id=cn.wait_spot_id AND ws.facility_id=ap.facility_id AND ws.active=1
        WHERE cn.access_point_id=? ORDER BY cn.walk_minutes,cn.id LIMIT 1`,apId);
   }
+  /** 이 지점까지 동선이 있는 대기 지점들, 가까운 순 */
+  function waitSpots(apId:number):WaitSpotOption[] {
+    return all<{id:number;name:string;floor:string|null;description:string|null;walk_minutes:number;covered:number}>(
+      `SELECT ws.id, ws.name, ws.floor, ws.description, MIN(cn.walk_minutes) AS walk_minutes, MAX(cn.covered) AS covered FROM connection cn
+       JOIN access_point ap ON ap.id=cn.access_point_id
+       JOIN wait_spot ws ON ws.id=cn.wait_spot_id AND ws.facility_id=ap.facility_id AND ws.active=1
+       WHERE cn.access_point_id=? GROUP BY ws.id ORDER BY walk_minutes, ws.id`,apId)
+      .map(w=>({id:String(w.id),name:w.name,floor:w.floor,description:w.description??'',walkMinutes:w.walk_minutes,covered:!!w.covered}));
+  }
   function facilities():Facility[] {
     return all<{id:number;name:string;address:string|null;lat:number;lng:number}>('SELECT * FROM facility ORDER BY id').map(f => ({
       id:String(f.id),name:f.name,address:f.address??'',lat:f.lat,lng:f.lng,dataStatus:'EXAMPLE',
@@ -46,7 +56,7 @@ export function createVisitRepository(db: Db) {
         const cn=connection(ap.id);
         return {id:String(ap.id),name:ap.name,lat:ap.lat,lng:ap.lng,kind:ap.type==='parking'?'PARKING_ENTRANCE':'PICKUP',allowed:!!ap.dropoff_allowed && (ap.type==='parking'||!!cn),
           description:[cn?.name,cn?.spot_description,cn?.description,ap.vehicle_notes].filter(Boolean).join(' · '),
-          waitSpot:cn?{name:cn.name,floor:cn.floor,description:cn.spot_description??''}:null,walkMinutes:cn?.walk_minutes??null,covered:!!cn?.covered} satisfies AccessPoint;
+          waitSpot:cn?{name:cn.name,floor:cn.floor,description:cn.spot_description??''}:null,walkMinutes:cn?.walk_minutes??null,covered:!!cn?.covered,waitSpots:waitSpots(ap.id)} satisfies AccessPoint;
       }),
     }));
   }
@@ -55,7 +65,7 @@ export function createVisitRepository(db: Db) {
   function visitFacility(v:VisitRow):Facility {
     const f=facility(v.facility_id);
     const pins=all<{id:number;name:string;lat:number;lng:number;type:string}>('SELECT DISTINCT ap.* FROM access_point ap JOIN candidate c ON c.access_point_id=ap.id WHERE c.visit_id=? AND ap.active=0 ORDER BY ap.id',v.id);
-    return {...f,accessPoints:[...f.accessPoints,...pins.map(ap=>({id:String(ap.id),name:ap.name,lat:ap.lat,lng:ap.lng,kind:ap.type==='parking'?'PARKING_ENTRANCE':'PICKUP',allowed:false,description:FREE_PIN_NOTE,waitSpot:null,walkMinutes:null,covered:false} satisfies AccessPoint))]};
+    return {...f,accessPoints:[...f.accessPoints,...pins.map(ap=>({id:String(ap.id),name:ap.name,lat:ap.lat,lng:ap.lng,kind:ap.type==='parking'?'PARKING_ENTRANCE':'PICKUP',allowed:false,description:FREE_PIN_NOTE,waitSpot:null,walkMinutes:null,covered:false,waitSpots:[]} satisfies AccessPoint))]};
   }
   function toVisit(v:VisitRow):Visit {
     const passenger = one<{status:keyof typeof readinessFromDb}>('SELECT status FROM participant WHERE visit_id=? AND role=\'passenger\'',v.id);
@@ -70,7 +80,9 @@ export function createVisitRepository(db: Db) {
   }
   function snapshot(token:string):VisitSnapshot {
     const a=actor(token); const v=row(a.visit_id);
-    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
+    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
+    const meetId=Number(toVisit(v).confirmedAccessPointId);
+    const passengerWaitSpot=extra?.passenger_wait_spot_id!=null?waitSpots(meetId).find(w=>w.id===String(extra.passenger_wait_spot_id))??null:null;
     const proposals=all<ProposalRow>(`SELECT pr.*, p.role, c.access_point_id, ctx.from_access_point_id FROM proposal pr
       JOIN participant p ON p.id=pr.proposer_id JOIN candidate c ON c.id=pr.candidate_id
       LEFT JOIN api_proposal_context ctx ON ctx.proposal_id=pr.id WHERE pr.visit_id=? ORDER BY pr.id DESC`,v.id).map(p=>({
@@ -80,7 +92,7 @@ export function createVisitRepository(db: Db) {
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
       vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:v.last_eta_sec,navResult:v.last_nav_result,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
-      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,rating:rating(v.id)};
+      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,rating:rating(v.id)};
   }
   function request<T>(actorKey:string,action:string,input:{requestId:string},fn:()=>T):T {
     const canonical=JSON.stringify(input,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)
@@ -99,17 +111,20 @@ export function createVisitRepository(db: Db) {
     } catch(e) {db.exec('ROLLBACK');throw e;}
   }
   function publish(id:string) {listeners.get(id)?.forEach(fn=>fn());}
-  function create(input:CreateVisitRequest):VisitSession {
+  /** weather: 만들 때의 날씨. 후보 순위(rank)와 방문 기록(weather_json)에 남긴다 */
+  function create(input:CreateVisitRequest,weather:Weather|null=null):VisitSession {
     return request(input.driverDeviceId,'create',input,()=>{
       const f=facility(Number(input.facilityId)); const selected=f.accessPoints.find(ap=>ap.id===input.accessPointId&&ap.allowed);
       if(!selected || selected.kind!==(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP')) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
       const id=randomUUID(); const now=iso(); const expires=new Date(Date.now()+LINK_TTL_MS).toISOString();
-      run('INSERT INTO visit (id,facility_id,mode,driver_device_id,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',id,Number(input.facilityId),modeToDb[input.mode],input.driverDeviceId,expires,now,now);
+      run('INSERT INTO visit (id,facility_id,mode,driver_device_id,weather_json,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',id,Number(input.facilityId),modeToDb[input.mode],input.driverDeviceId,weather?JSON.stringify(weather):null,expires,now,now);
       run('INSERT INTO api_visit_state (visit_id) VALUES (?)',id);
       let selectedCandidate:number|null=null; let rank=0;
-      for(const ap of f.accessPoints.filter(ap=>ap.allowed&&ap.kind===(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP'))) {
+      const usable=f.accessPoints.filter(ap=>ap.allowed&&ap.kind===(input.mode==='PARK'?'PARKING_ENTRANCE':'PICKUP'));
+      for(const ranked of rankAccessPoints(usable,weather,pastRatings(input.driverDeviceId,Number(input.facilityId)))) {
+        const ap=usable.find(p=>p.id===ranked.accessPointId)!;
         const cn=connection(Number(ap.id));
-        const result=run('INSERT INTO candidate (visit_id,purpose,access_point_id,wait_spot_id,connection_id,rank,reasons_json) VALUES (?,?,?,?,?,?,?)',id,input.mode==='PARK'?'parking':'meet',Number(ap.id),cn?.wait_spot_id??null,cn?.id??null,++rank,JSON.stringify([ap.description]));
+        const result=run('INSERT INTO candidate (visit_id,purpose,access_point_id,wait_spot_id,connection_id,rank,reasons_json) VALUES (?,?,?,?,?,?,?)',id,input.mode==='PARK'?'parking':'meet',Number(ap.id),cn?.wait_spot_id??null,cn?.id??null,++rank,JSON.stringify([ranked.reason??ap.description]));
         if(ap.id===input.accessPointId) selectedCandidate=Number(result.lastInsertRowid);
       }
       run(`UPDATE visit SET ${input.mode==='PARK'?'parking_candidate_id':'confirmed_candidate_id'}=? WHERE id=? AND version=1`,selectedCandidate,id);
@@ -131,19 +146,25 @@ export function createVisitRepository(db: Db) {
     });
     publish(a.visit_id);return snapshot(token);
   }
+  /** 만날 곳이 바뀌어 고른 대기 지점에서 갈 동선이 없으면 지운다 */
+  function dropUnreachableWaitSpot(visitId:string,apId:number) {
+    const chosen=one<{passenger_wait_spot_id:number|null}>('SELECT passenger_wait_spot_id FROM api_visit_state WHERE visit_id=?',visitId)?.passenger_wait_spot_id;
+    if(chosen!=null&&!waitSpots(apId).some(w=>w.id===String(chosen))) run('UPDATE api_visit_state SET passenger_wait_spot_id=NULL WHERE visit_id=?',visitId);
+  }
   const requireRole=(a:Actor,role:Actor['role'])=>{if(a.role!==role) error(403,'FORBIDDEN','이 작업을 할 권한이 없어요');};
   const requireActive=(v:VisitRow)=>{if(['ended','boarded','cancelled'].includes(v.status)) error(409,'VISIT_ENDED','이미 종료된 방문이에요');};
   function update(token:string,input:UpdateVisitRequest):VisitSnapshot {
     return mutate(token,'update',input,(a,v)=>{
       requireActive(v);
       if(input.phase!==undefined||input.vehicle!==undefined||input.parkingFloor!==undefined||input.accessPointId!==undefined) requireRole(a,'driver');
-      if(input.passengerReadiness!==undefined||input.passengerLocation!==undefined) requireRole(a,'passenger');
+      if(input.passengerReadiness!==undefined||input.passengerLocation!==undefined||input.passengerWaitSpotId!==undefined) requireRole(a,'passenger');
       if(input.accessPointId!==undefined) {
         if(v.mode==='pickup') return error(403,'MUTUAL_CONSENT_REQUIRED','픽업 장소는 상대방이 제안을 수락해야 바뀌어요');
         const candidate=one<Candidate>('SELECT * FROM candidate WHERE visit_id=? AND access_point_id=? AND purpose=? AND excluded_reason IS NULL',v.id,Number(input.accessPointId),v.mode==='parking'?'parking':'meet');
         if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
         // 장소가 바뀌면 이전 장소의 내비 결과는 더 이상 맞지 않는다
         run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,candidate.id,v.id,v.version);
+        dropUnreachableWaitSpot(v.id,Number(input.accessPointId));
       }
       if(input.phase!==undefined) {
         const current=phaseFromDb[v.status];
@@ -158,6 +179,11 @@ export function createVisitRepository(db: Db) {
       }
       if(input.passengerReadiness!==undefined) run('UPDATE participant SET status=?,last_seen_at=? WHERE id=?',readinessToDb[input.passengerReadiness],iso(),a.id);
       if(input.passengerLocation!==undefined) run('UPDATE api_visit_state SET passenger_lat=?,passenger_lng=?,passenger_at=? WHERE visit_id=?',input.passengerLocation?.lat??null,input.passengerLocation?.lng??null,input.passengerLocation?iso():null,v.id);
+      if(input.passengerWaitSpotId!==undefined) {
+        const meet=Number(toVisit(v).confirmedAccessPointId);
+        if(input.passengerWaitSpotId!==null&&!waitSpots(meet).some(w=>w.id===input.passengerWaitSpotId)) return error(400,'INVALID_WAIT_SPOT','만날 곳과 이어지지 않는 대기 지점이에요');
+        run('UPDATE api_visit_state SET passenger_wait_spot_id=? WHERE visit_id=?',input.passengerWaitSpotId===null?null:Number(input.passengerWaitSpotId),v.id);
+      }
       if(input.parkingFloor!==undefined) run('UPDATE api_visit_state SET parking_floor=? WHERE visit_id=?',input.parkingFloor,v.id);
       if(input.vehicle) {
         const pos=input.vehicle;
@@ -195,7 +221,10 @@ export function createVisitRepository(db: Db) {
       if(p.status!=='pending') return error(409,'PROPOSAL_CLOSED','이미 답했거나 만료된 제안이에요');
       const accept='accept' in input&&input.accept;
       run('UPDATE proposal SET status=?,responder_id=?,responded_via=\'touch\',responded_at=? WHERE id=?',cancel?'expired':accept?'accepted':'rejected',a.id,iso(),p.id);
-      if(accept) run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
+      if(accept) {
+        run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
+        dropUnreachableWaitSpot(v.id,one<Candidate>('SELECT * FROM candidate WHERE id=?',p.candidate_id)!.access_point_id);
+      }
     });
   }
   function rate(token:string,input:RateVisitRequest) {
@@ -206,10 +235,27 @@ export function createVisitRepository(db: Db) {
       run('INSERT INTO place_rating (visit_id,candidate_id,rating,tags_json,comment) VALUES (?,?,?,?,?)',v.id,(v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id)!,input.rating,JSON.stringify(input.tags),input.comment??null);
     });
   }
-  function history(driverDeviceId:string):HistoryEntry[] {
-    return all<VisitRow>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId).map(v=>({visit:toVisit(v),facility:visitFacility(v),rating:rating(v.id)}));
+  /** 이 운전자가 이 시설에서 지점별로 남긴 평가 평균. 다음 추천 순서에 쓴다 */
+  function pastRatings(driverDeviceId:string,facilityId:number):Map<string,number> {
+    return new Map(all<{ap:number;avg:number}>(
+      `SELECT c.access_point_id AS ap, AVG(r.rating) AS avg FROM place_rating r
+       JOIN candidate c ON c.id=r.candidate_id JOIN visit v ON v.id=r.visit_id
+       WHERE v.driver_device_id=? AND v.facility_id=? GROUP BY c.access_point_id`,driverDeviceId,facilityId).map(r=>[String(r.ap),r.avg]));
   }
-  return {facilities,create,snapshot,update,propose,respond,rate,history,
+  function history(driverDeviceId:string):HistoryEntry[] {
+    return all<VisitRow&{weather_json:string|null}>('SELECT * FROM visit WHERE driver_device_id=? ORDER BY created_at DESC LIMIT 100',driverDeviceId)
+      .map(v=>({visit:toVisit(v),facility:visitFacility(v),rating:rating(v.id),weather:v.weather_json?JSON.parse(v.weather_json) as Weather:null}));
+  }
+  /** 문자 초대용: 운전자 토큰으로만, 끝나지 않은 방문의 동승자 토큰을 꺼낸다 */
+  function inviteTarget(token:string) {
+    const a=actor(token);
+    requireRole(a,'driver');
+    const v=row(a.visit_id);
+    if(['COMPLETED','CANCELLED'].includes(phaseFromDb[v.status])) return error(409,'VISIT_ENDED','이미 끝난 방문이에요');
+    const passenger=one<{token:string}>("SELECT token FROM participant WHERE visit_id=? AND role='passenger'",v.id) ?? error(404,'VISIT_NOT_FOUND','방문을 찾을 수 없어요');
+    return {visitId:v.id,passengerToken:passenger.token,facilityName:visitFacility(v).name};
+  }
+  return {facilities,create,snapshot,update,propose,respond,rate,history,pastRatings,inviteTarget,
     subscribe(token:string,listener:()=>void) {
       const a=actor(token);const set=listeners.get(a.visit_id)??new Set<()=>void>();set.add(listener);listeners.set(a.visit_id,set);
       return ()=>{set.delete(listener);if(!set.size) listeners.delete(a.visit_id);};

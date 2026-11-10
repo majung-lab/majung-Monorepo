@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS api_visit_state (
   passenger_lat REAL,
   passenger_lng REAL,
   passenger_at TEXT,
-  parking_floor TEXT
+  parking_floor TEXT,
+  passenger_wait_spot_id INTEGER REFERENCES wait_spot(id)
 );
 CREATE TABLE IF NOT EXISTS api_proposal_context (
   proposal_id INTEGER PRIMARY KEY REFERENCES proposal(id) ON DELETE CASCADE,

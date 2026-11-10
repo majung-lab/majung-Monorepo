@@ -42,6 +42,9 @@ class VehicleViewModel @JvmOverloads constructor(
     var dismissedResult by mutableStateOf(prefs.getString("dismissedResult", null)); private set
     /** 이번 실행에서 내비에 넣은 결과. null이면 서버에 남은 마지막 결과를 쓴다 */
     var naviStatus by mutableStateOf<NaviStatus?>(null); private set
+    /** C04에서 보는 시설 날씨와 추천 순서. 못 받으면 null이고 지점은 서버 순서 그대로 */
+    var placeWeather by mutableStateOf<FacilityWeatherDto?>(null); private set
+    private var placeWeatherKey: String? = null
 
     init {
         navi.watchArrival(::onNaviArrived)
@@ -56,6 +59,36 @@ class VehicleViewModel @JvmOverloads constructor(
         }
     }
 
+    /** 문자 초대: 보내는 중인 번호, 이번 방문에서 보낸 번호, 마지막 결과 문구 */
+    var inviteSending by mutableStateOf<String?>(null); private set
+    var invitedNumbers by mutableStateOf<Set<String>>(emptySet()); private set
+    var inviteNotice by mutableStateOf<String?>(null); private set
+
+    /** 동승자 링크를 문자로 보낸다. 번호는 서버로만 보내고 앱에 저장하지 않는다 */
+    fun sendInvite(name: String?, digits: String) {
+        val token = driverToken
+        if (token == null) { inviteNotice = "진행 중인 방문이 없어요"; return }
+        if (inviteSending != null) return
+        inviteSending = digits
+        scope.launch {
+            inviteNotice = try {
+                val body = buildJsonObject { put("requestId", UUID.randomUUID().toString()); put("phone", digits) }
+                val result: InviteResult = api.write("POST", "/api/visits/$token/invites", body)
+                invitedNumbers = invitedNumbers + digits
+                "${name ?: result.sentTo}님께 링크를 보냈어요"
+            } catch (e: CancellationException) { throw e
+            } catch (e: ApiException) {
+                when (e.status) {
+                    400 -> "휴대폰 번호를 확인해 주세요"
+                    429 -> "이 방문에서는 문자를 더 보낼 수 없어요"
+                    409 -> "이미 끝난 방문이에요"
+                    else -> "문자를 보내지 못했어요. 잠시 후 다시 시도해 주세요"
+                }
+            } catch (e: Exception) { "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요." }
+            finally { inviteSending = null }
+        }
+    }
+
     fun dismissError() { error = null }
     fun dismissResult(id: String) {
         dismissedResult = id
@@ -66,6 +99,18 @@ class VehicleViewModel @JvmOverloads constructor(
         history = api.get<List<HistoryEntry>>("/api/history?driverDeviceId=$deviceId").filter { it.visit.phase == "COMPLETED" }
         if (driverToken == null) prefs.getString("pendingBody", null)?.let { recoverSession(Json.parseToJsonElement(it)) }
         refreshVisit()
+    }
+
+    /** 날씨는 추천에만 쓰므로 실패해도 오류를 띄우지 않는다 */
+    fun loadPlaceWeather(facilityId: String, mode: VisitMode) {
+        val key = "$facilityId/${mode.name}"
+        // 같은 시설을 다시 받을 때(10분마다 갱신)는 이전 값을 그대로 보여 준다
+        if (placeWeatherKey != key) placeWeather = null
+        placeWeatherKey = key
+        scope.launch {
+            val result = try { api.get<FacilityWeatherDto>("/api/facilities/$facilityId/weather?mode=${mode.name}&driverDeviceId=$deviceId") } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            if (placeWeatherKey == key) placeWeather = result
+        }
     }
 
     private suspend fun refreshVisit() {
@@ -219,6 +264,7 @@ class VehicleViewModel @JvmOverloads constructor(
     private suspend fun recoverSession(body: JsonElement): VisitSession {
         val session: VisitSession = api.write("POST", "/api/visits", body)
         driverToken = session.driverToken; passengerToken = session.passengerToken
+        invitedNumbers = emptySet(); inviteNotice = null
         prefs.edit().putString("driver", session.driverToken).putString("passenger", session.passengerToken).remove("pendingBody").commit()
         return session
     }

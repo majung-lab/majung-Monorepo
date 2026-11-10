@@ -31,6 +31,28 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Facility' }
+  /api/facilities/{id}/weather:
+    get:
+      operationId: getFacilityWeather
+      description: >
+        Weather at the facility for the next few hours (KMA short-term forecast) and the usable access points
+        for the mode in recommended order. When rain or snow is expected within 6 hours, covered routes come
+        first; then spots this driver rated well; then the shortest walk. weather is null when the forecast is unavailable.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[1-9][0-9]*$' } }
+        - { name: mode, in: query, required: false, schema: { type: string, enum: [PICKUP, PARK, DROPOFF] } }
+        - name: driverDeviceId
+          in: query
+          required: false
+          description: When given, this driver's past ratings also order the ranking (liked spots first, disliked last). Covered routes in rain still come first.
+          schema: { type: string, minLength: 24, maxLength: 128 }
+      responses:
+        '200':
+          description: Weather and ranking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FacilityWeather' }
+        default: { $ref: '#/components/responses/Error' }
   /api/visits:
     post:
       operationId: createVisit
@@ -134,6 +156,29 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snapshot' }
         default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/invites:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    post:
+      operationId: inviteBySms
+      description: >
+        Driver alone texts the passenger link to a Korean mobile number while the visit is not
+        COMPLETED/CANCELLED. The server builds the message and link itself (PASSENGER_WEB_URL), so
+        clients cannot send arbitrary text. The number is not stored; only the masked number is
+        returned. Same requestId does not send twice. At most 5 messages per visit (429).
+        SMS_PROVIDER=console (default) only prints the message for local development.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInviteRequest' }
+      responses:
+        '200':
+          description: Sent (or replayed) invite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InviteResult' }
+        default: { $ref: '#/components/responses/Error' }
   /api/history:
     get:
       operationId: listHistory
@@ -199,7 +244,7 @@ components:
         completedAt: { type: [string, 'null'], format: date-time }
     AccessPoint:
       type: object
-      required: [id, name, lat, lng, description, kind, allowed, waitSpot, walkMinutes, covered]
+      required: [id, name, lat, lng, description, kind, allowed, waitSpot, walkMinutes, covered, waitSpots]
       properties:
         id: { type: string }
         name: { type: string }
@@ -217,6 +262,47 @@ components:
             description: { type: string }
         walkMinutes: { type: [integer, 'null'] }
         covered: { type: boolean }
+        waitSpots:
+          type: array
+          description: Waiting spots connected to this access point, nearest first.
+          items: { $ref: '#/components/schemas/WaitSpotOption' }
+    WaitSpotOption:
+      type: object
+      required: [id, name, floor, description, walkMinutes, covered]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        floor: { type: [string, 'null'] }
+        description: { type: string }
+        walkMinutes: { type: integer, minimum: 0 }
+        covered: { type: boolean }
+    Weather:
+      type: object
+      required: [condition, tempC, rainChance, rainSoon, summary, checkedAt, source]
+      properties:
+        condition: { type: string, enum: [CLEAR, CLOUDY, RAIN, SNOW] }
+        tempC: { type: [integer, 'null'] }
+        rainChance: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        rainSoon: { type: boolean, description: Raining now or expected within 6 hours. }
+        summary: { type: string, description: 'One display line, e.g. "15시부터 비 · 강수확률 70%".' }
+        checkedAt: { type: string, format: date-time }
+        source: { type: string, enum: [KMA, DEMO] }
+    RankedAccessPoint:
+      type: object
+      required: [accessPointId, recommended, reason]
+      properties:
+        accessPointId: { type: string }
+        recommended: { type: boolean }
+        reason: { type: [string, 'null'] }
+    FacilityWeather:
+      type: object
+      required: [weather, ranking]
+      properties:
+        weather:
+          oneOf: [{ $ref: '#/components/schemas/Weather' }, { type: 'null' }]
+        ranking:
+          type: array
+          items: { $ref: '#/components/schemas/RankedAccessPoint' }
     Facility:
       type: object
       required: [id, name, address, lat, lng, accessPoints, dataStatus]
@@ -253,7 +339,7 @@ components:
         comment: { type: [string, 'null'] }
     VisitSnapshot:
       type: object
-      required: [visit, role, facility, proposals, vehicle, passengerLocation, rating]
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, rating]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         role: *role
@@ -277,6 +363,11 @@ components:
             lat: *lat
             lng: *lng
             recordedAt: { type: string, format: date-time }
+        passengerWaitSpot:
+          description: Where the passenger said they are waiting. Cleared when the meeting point changes and no route remains.
+          oneOf:
+            - { $ref: '#/components/schemas/WaitSpotOption' }
+            - { type: 'null' }
         rating:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
@@ -290,7 +381,7 @@ components:
         passengerToken: { type: string }
     HistoryEntry:
       type: object
-      required: [visit, facility, rating]
+      required: [visit, facility, rating, weather]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         facility: { $ref: '#/components/schemas/Facility' }
@@ -298,6 +389,23 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
             - { type: 'null' }
+        weather:
+          description: Weather snapshot taken when the visit was created.
+          oneOf:
+            - { $ref: '#/components/schemas/Weather' }
+            - { type: 'null' }
+    CreateInviteRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, phone]
+      properties:
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        phone: { type: string, maxLength: 32, description: 'Korean mobile number; hyphens, spaces and +82 accepted' }
+    InviteResult:
+      type: object
+      required: [sentTo]
+      properties:
+        sentTo: { type: string, description: 'Masked number, e.g. 010-****-5678' }
     MutationRequest:
       type: object
       additionalProperties: false
@@ -327,6 +435,10 @@ components:
         phase: *phase
         passengerReadiness: *readiness
         parkingFloor: { type: [string, 'null'], minLength: 1, maxLength: 32 }
+        passengerWaitSpotId:
+          type: [string, 'null']
+          pattern: '^[1-9][0-9]*$'
+          description: Passenger-only. One of the confirmed access point's waitSpots; null clears it.
         passengerLocation:
           type: [object, 'null']
           additionalProperties: false
