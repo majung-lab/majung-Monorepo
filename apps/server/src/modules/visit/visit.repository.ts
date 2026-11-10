@@ -11,8 +11,13 @@ const FREE_PIN_NOTE = '확인되지 않은 위치예요. 차를 세우기 어려
 const phaseFromDb = { created: 'PREPARING', moving: 'MOVING', arrived: 'ARRIVED', boarded: 'COMPLETED', ended: 'COMPLETED', cancelled: 'CANCELLED' } as const;
 const modeFromDb = { pickup: 'PICKUP', dropoff: 'DROPOFF', parking: 'PARK' } as const;
 const modeToDb = { PICKUP: 'pickup', DROPOFF: 'dropoff', PARK: 'parking' } as const;
-const readinessFromDb = { none: 'UNSEEN', preparing: 'SEEN', moving_to_lobby: 'HEADING_OUT', at_lobby: 'READY' } as const;
-const readinessToDb = { UNSEEN: 'none', SEEN: 'preparing', HEADING_OUT: 'moving_to_lobby', READY: 'at_lobby' } as const;
+// 원본 스키마의 participant.status는 none·preparing·moving_to_lobby·at_lobby 넷뿐이다.
+// 링크만 연 상태(SEEN)는 none + last_seen_at으로 구분하고, 준비 세 단계를 나머지 셋에 둔다
+const readinessFromDb = { preparing: 'READY', moving_to_lobby: 'HEADING_OUT', at_lobby: 'AT_LOBBY' } as const;
+const readinessToDb = { UNSEEN: 'none', SEEN: 'none', READY: 'preparing', HEADING_OUT: 'moving_to_lobby', AT_LOBBY: 'at_lobby' } as const;
+type PassengerStatus = 'none' | keyof typeof readinessFromDb;
+const readiness = (p?: { status: PassengerStatus; last_seen_at: string | null }) =>
+  !p || p.status === 'none' ? (p?.last_seen_at ? 'SEEN' : 'UNSEEN') : readinessFromDb[p.status];
 type VisitRow = {id:string; facility_id:number;mode:keyof typeof modeFromDb;status:keyof typeof phaseFromDb;confirmed_candidate_id:number|null;parking_candidate_id:number|null;driver_device_id:string;version:number;updated_at:string;expires_at:string;last_lat:number|null;last_lng:number|null;last_eta_sec:number|null;last_nav_result:'set'|'failed'|null;last_vehicle_at:string|null};
 type Actor = {id:number;visit_id:string;role:'driver'|'passenger';token:string};
 type Candidate = {id:number;access_point_id:number;purpose:'meet'|'parking'};
@@ -77,11 +82,11 @@ export function createVisitRepository(db: Db) {
     return {...f,accessPoints:[...f.accessPoints,...pins.map(ap=>({id:String(ap.id),name:ap.name,lat:ap.lat,lng:ap.lng,kind:ap.type==='parking'?'PARKING_ENTRANCE':'PICKUP',allowed:false,description:FREE_PIN_NOTE,waitSpot:null,walkMinutes:null,covered:false,waitSpots:[]} satisfies AccessPoint))]};
   }
   function toVisit(v:VisitRow):Visit {
-    const passenger = one<{status:keyof typeof readinessFromDb}>('SELECT status FROM participant WHERE visit_id=? AND role=\'passenger\'',v.id);
+    const passenger = one<{status:PassengerStatus;last_seen_at:string|null}>('SELECT status,last_seen_at FROM participant WHERE visit_id=? AND role=\'passenger\'',v.id);
     const candidate=one<Candidate>('SELECT * FROM candidate WHERE id=?',v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id);
     const extra=one<{parking_floor:string|null}>('SELECT parking_floor FROM api_visit_state WHERE visit_id=?',v.id);
     const completed=one<{created_at:string}>("SELECT created_at FROM stage_event WHERE visit_id=? AND stage='ended' ORDER BY id DESC LIMIT 1",v.id);
-    return {id:v.id,facilityId:String(v.facility_id),mode:modeFromDb[v.mode],phase:phaseFromDb[v.status],confirmedAccessPointId:String(candidate?.access_point_id??''),version:v.version,passengerReadiness:readinessFromDb[passenger?.status??'none'],updatedAt:normalizeTime(v.updated_at),expiresAt:normalizeTime(v.expires_at),parkingFloor:extra?.parking_floor??null,completedAt:completed?normalizeTime(completed.created_at):null};
+    return {id:v.id,facilityId:String(v.facility_id),mode:modeFromDb[v.mode],phase:phaseFromDb[v.status],confirmedAccessPointId:String(candidate?.access_point_id??''),version:v.version,passengerReadiness:readiness(passenger),updatedAt:normalizeTime(v.updated_at),expiresAt:normalizeTime(v.expires_at),parkingFloor:extra?.parking_floor??null,completedAt:completed?normalizeTime(completed.created_at):null};
   }
   function rating(visitId:string) {
     const result=one<{rating:number;tags_json:string|null;comment:string|null}>('SELECT * FROM place_rating WHERE visit_id=? ORDER BY id DESC LIMIT 1',visitId);
@@ -192,7 +197,7 @@ export function createVisitRepository(db: Db) {
         if(input.phase==='COMPLETED') run('INSERT INTO destination_history (driver_device_id,facility_id,mode,last_candidate_id) VALUES (?,?,?,?)',v.driver_device_id,v.facility_id,v.mode,v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id);
         if(['COMPLETED','CANCELLED'].includes(input.phase)) run("UPDATE proposal SET status='expired',responded_at=? WHERE visit_id=? AND status='pending'",iso(),v.id);
       }
-      if(input.passengerReadiness!==undefined) run('UPDATE participant SET status=?,last_seen_at=? WHERE id=?',readinessToDb[input.passengerReadiness],iso(),a.id);
+      if(input.passengerReadiness!==undefined) run('UPDATE participant SET status=?,last_seen_at=? WHERE id=?',readinessToDb[input.passengerReadiness],input.passengerReadiness==='UNSEEN'?null:iso(),a.id);
       if(input.passengerLocation!==undefined) run('UPDATE api_visit_state SET passenger_lat=?,passenger_lng=?,passenger_at=? WHERE visit_id=?',input.passengerLocation?.lat??null,input.passengerLocation?.lng??null,input.passengerLocation?iso():null,v.id);
       if(input.passengerWaitSpotId!==undefined) {
         if(input.passengerWaitSpotId!==null&&!facility(v.facility_id).waitSpots.some(w=>w.id===input.passengerWaitSpotId)) return error(400,'INVALID_WAIT_SPOT','이 시설의 대기 지점이 아니에요');

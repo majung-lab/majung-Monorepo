@@ -14,6 +14,9 @@ import swap from '../../assets/icons/swap.svg';
 
 type MapView = 'me' | 'car' | 'meet' | 'all';
 const STEPS = ['출발 준비', '이동 중', '도착'];
+// 준비 버튼 한 개로 단계를 넘긴다: 준비됐어요 → 지금 나갈게요 → 로비에 도착했어요
+const NEXT_READINESS = { READY: 'HEADING_OUT', HEADING_OUT: 'AT_LOBBY' } as const;
+const READINESS_BUTTON = { READY: '지금 나갈게요', HEADING_OUT: '로비에 도착했어요', AT_LOBBY: '로비에 있어요 · 전달됨' } as const;
 const CONDITIONS: [keyof MoveConditions, string][] = [['stroller', '유모차'], ['luggage', '짐 많음'], ['avoidStairs', '계단 피하기'], ['indoorOnly', '실내로만']];
 const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -156,8 +159,8 @@ export default function VisitPage() {
             </p>)}
         <p className="location-note" role="status">{positionError || (me ? '내 실제 위치를 차량에 공유하고 있어요.' : '위치 권한을 허용하면 차량에 내 위치를 공유해요.')}{stale ? ' 차량 위치가 1분 이상 갱신되지 않았어요.' : !car ? ' 차량 위치는 아직 전송되지 않았어요.' : ''}</p>
         {mine && <button className="btn-cancel" onClick={() => navigate('move')}>보낸 제안 확인</button>}
-        <button className="btn-primary" disabled={busy || readiness === 'HEADING_OUT'} onClick={() => void mutate((s) => api.readiness(token, s.visit.version, readiness === 'READY' ? 'HEADING_OUT' : 'READY'))}>
-          {readiness === 'HEADING_OUT' ? '나가는 중이에요 · 전달됨' : readiness === 'READY' ? '지금 나갈게요' : '준비됐어요'}
+        <button className="btn-primary" disabled={busy || readiness === 'AT_LOBBY'} onClick={() => void mutate((s) => api.readiness(token, s.visit.version, readiness === 'READY' || readiness === 'HEADING_OUT' ? NEXT_READINESS[readiness] : 'READY'))}>
+          {readiness === 'READY' || readiness === 'HEADING_OUT' || readiness === 'AT_LOBBY' ? READINESS_BUTTON[readiness] : '준비됐어요'}
         </button>
       </section>
     </main>

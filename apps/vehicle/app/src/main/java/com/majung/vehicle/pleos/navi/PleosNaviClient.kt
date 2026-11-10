@@ -2,6 +2,7 @@ package com.majung.vehicle.pleos.navi
 
 import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.data.DestinationArrivedInfo
+import ai.pleos.playground.navi.data.DestinationInfo
 import ai.pleos.playground.navi.data.NavigationScreenRequest
 import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteStartInfo
@@ -11,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 
 /**
  * Pleos NaviHelper로 차량 내장 내비에 목적지를 넣는다.
@@ -25,10 +27,20 @@ class PleosNaviClient(context: Context) : NaviClient {
     private val waitingForConnection = mutableListOf<() -> Unit>()
     private var pending: ((NaviResult) -> Unit)? = null
     private var arrived: ((String) -> Unit)? = null
+    private var eta: ((Int, Double?, Double?) -> Unit)? = null
     private val timeout = Runnable { finish(NaviResult.Failed("내비 응답 없음")) }
 
     private val listener = object : NaviHelperEventListener {
-        override fun onRouteStarted(routeStartInfo: RouteStartInfo) { main.post { finish(NaviResult.Guiding) } }
+        override fun onRouteStarted(routeStartInfo: RouteStartInfo) {
+            Log.d(TAG, "onRouteStarted duration=${routeStartInfo.duration} distance=${routeStartInfo.distance}")
+            main.post { finish(NaviResult.Guiding); eta?.invoke(toSeconds(routeStartInfo.duration), null, null) }
+        }
+        override fun onDestinationInfo(info: DestinationInfo) {
+            Log.d(TAG, "onDestinationInfo remainTime=${info.remainTime} remainDistance=${info.remainDistance}")
+            // 안내 중인 경로가 없으면 남은 시간·거리가 0으로 온다
+            if (info.remainTime <= 0 && info.remainDistance <= 0) return
+            main.post { eta?.invoke(toSeconds(info.remainTime), info.latitude, info.longitude) }
+        }
         override fun onDestinationArrived(info: DestinationArrivedInfo) { main.post { arrived?.invoke(info.name) } }
         override fun onError(errorCode: NaviErrorCode) { main.post { finish(NaviResult.Failed(errorCode.name)) } }
     }
@@ -56,6 +68,15 @@ class PleosNaviClient(context: Context) : NaviClient {
             // 앱을 다시 켜서 목적지를 다시 넣지 않은 경우에도 도착 이벤트를 받도록 연결만 해 둔다
             whenConnected {}
         }
+    }
+
+    override fun watchEta(onEta: (remainSec: Int, destLat: Double?, destLng: Double?) -> Unit) {
+        main.post { eta = onEta }
+    }
+
+    /** 연결돼 있을 때만 묻는다 (남은 시간 때문에 내비 연결을 새로 열지 않는다) */
+    override fun refreshEta() {
+        main.post { if (connected) runCatching { helper?.getDestinationInfo() } }
     }
 
     override fun showNavi() {
@@ -86,6 +107,7 @@ class PleosNaviClient(context: Context) : NaviClient {
             failedWhileWaiting.clear()
             pending = null
             arrived = null
+            eta = null
             main.removeCallbacks(timeout)
         }
     }
@@ -143,5 +165,8 @@ class PleosNaviClient(context: Context) : NaviClient {
     private companion object {
         const val RESULT_TIMEOUT_MS = 10_000L
         const val NAVI_PACKAGE = "ai.umos.maps.android.navigation.app"
+        const val TAG = "MajungNavi"
+        /** NaviHelper의 duration·remainTime은 초 단위다 (Pleos 에뮬레이터: 내비 "38분" = 2280) */
+        fun toSeconds(value: Int) = value
     }
 }

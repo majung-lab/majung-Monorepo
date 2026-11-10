@@ -24,7 +24,7 @@ export async function visitRoutes(app: FastifyInstance, { visits, placeName, wea
   });
   app.get<{Params:TokenParams}>('/visits/:token',async req=>visits.snapshot(req.params.token));
   app.patch<{Params:TokenParams;Body:UpdateVisitRequest}>('/visits/:token',{schema:{body:{...mutation({
-    accessPointId:id,phase:{enum:['PREPARING','MOVING','ARRIVED','COMPLETED','CANCELLED']},passengerReadiness:{enum:['UNSEEN','SEEN','READY','HEADING_OUT']},
+    accessPointId:id,phase:{enum:['PREPARING','MOVING','ARRIVED','COMPLETED','CANCELLED']},passengerReadiness:{enum:['UNSEEN','SEEN','READY','HEADING_OUT','AT_LOBBY']},
     parkingFloor:nullable({type:'string',minLength:1,maxLength:32}),
     passengerLocation:nullable(object({lat,lng},['lat','lng'])),
     passengerWaitSpotId:nullable(id),

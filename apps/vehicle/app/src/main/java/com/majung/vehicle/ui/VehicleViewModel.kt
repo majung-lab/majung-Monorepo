@@ -44,14 +44,20 @@ class VehicleViewModel @JvmOverloads constructor(
     var naviStatus by mutableStateOf<NaviStatus?>(null); private set
     /** C04에서 보는 시설 날씨와 추천 순서. 못 받으면 null이고 지점은 서버 순서 그대로 */
     var placeWeather by mutableStateOf<FacilityWeatherDto?>(null); private set
+    /** 내비가 알려 준 지금 목적지까지 남은 시간(초). 위치와 함께 서버로 보낸다. 목적지가 바뀌면 지운다 */
+    private var etaSec: Int? = null
     private var placeWeatherKey: String? = null
 
     init {
         navi.watchArrival(::onNaviArrived)
+        navi.watchEta(::onNaviEta)
         refresh()
         scope.launch {
             while (isActive) {
                 delay(5_000)
+                // 앱을 다시 켜서 이번 실행의 결과가 없으면 서버에 남은 "안내 중"을 믿는다
+                val guiding = naviStatus == NaviStatus.GUIDING || (naviStatus == null && snapshot?.vehicle?.navResult == "set")
+                if (guiding && snapshot?.visit?.phase == "MOVING") navi.refreshEta()
                 lock.withLock {
                     try { refreshVisit() } catch (e: CancellationException) { throw e } catch (e: Exception) { handle(e) }
                 }
@@ -143,6 +149,7 @@ class VehicleViewModel @JvmOverloads constructor(
             notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", to)
         }
         if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", point)
+        if (visit.passengerReadiness == "AT_LOBBY") notice.alert("lobby:${visit.id}", "가족이 로비에 도착했어요", point)
     }
 
     /**
@@ -157,6 +164,7 @@ class VehicleViewModel @JvmOverloads constructor(
         if (prefs.getString("naviTarget", null) == key) return
         prefs.edit().putString("naviTarget", key).apply()
         naviStatus = NaviStatus.REQUESTING
+        etaSec = null
         navi.requestRoute(point.name, point.lat, point.lng) { result ->
             if (prefs.getString("naviTarget", null) != key) return@requestRoute
             naviStatus = if (result is NaviResult.Guiding) NaviStatus.GUIDING else NaviStatus.FAILED
@@ -165,6 +173,24 @@ class VehicleViewModel @JvmOverloads constructor(
     }
 
     fun showNavi() = navi.showNavi()
+
+    /**
+     * 내비의 남은 시간. 내비가 마중 장소가 아닌 곳(300m 밖)을 안내 중이면 쓰지 않는다.
+     * 1분 넘게 바뀌었을 때만 바로 보내고, 나머지는 다음 위치 전송에 실린다
+     */
+    private fun onNaviEta(remainSec: Int, destLat: Double?, destLng: Double?) {
+        val value = snapshot ?: return
+        if (value.visit.phase != "MOVING" || remainSec < 0) return
+        val point = value.facility.accessPoints.firstOrNull { it.id == value.visit.confirmedAccessPointId } ?: return
+        if (destLat != null && destLng != null) {
+            val d = FloatArray(1)
+            Location.distanceBetween(destLat, destLng, point.lat, point.lng, d)
+            if (d[0] > ARRIVAL_RADIUS_M) return
+        }
+        val before = etaSec
+        etaSec = remainSec.coerceAtMost(86_400)
+        if (before == null || kotlin.math.abs(before - remainSec) >= 60) lastLocation?.let(::publishLocation)
+    }
 
     /**
      * 내비가 도착을 알리면 "도착했어요"를 대신 누르고 마중 화면을 앞으로 띄운다.
@@ -200,7 +226,7 @@ class VehicleViewModel @JvmOverloads constructor(
                             put("requestId", UUID.randomUUID().toString()); put("version", version)
                             putJsonObject("vehicle") {
                                 put("lat", lastLocation?.latitude); put("lng", lastLocation?.longitude)
-                                put("etaSec", JsonNull); put("navResult", if (guiding) "set" else "failed")
+                                put("etaSec", etaSec); put("navResult", if (guiding) "set" else "failed")
                             }
                         }))
                         return@withLock
@@ -306,7 +332,7 @@ class VehicleViewModel @JvmOverloads constructor(
         val version = snapshot?.visit?.version ?: return
         applySnapshot(api.write("PATCH", "/api/visits/$token", buildJsonObject {
             put("requestId", UUID.randomUUID().toString()); put("version", version)
-            putJsonObject("vehicle") { put("lat", location.latitude); put("lng", location.longitude); put("etaSec", JsonNull) }
+            putJsonObject("vehicle") { put("lat", location.latitude); put("lng", location.longitude); put("etaSec", etaSec) }
         }))
     }
 

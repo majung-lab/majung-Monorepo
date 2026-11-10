@@ -4,7 +4,8 @@ export type VisitMode = 'PICKUP' | 'PARK' | 'DROPOFF';
 export type VisitPhase = 'PREPARING' | 'MOVING' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
 export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 export type NaviStatus = 'NONE' | 'REQUESTED' | 'GUIDING' | 'FAILED';
-export type PassengerReadiness = 'UNSEEN' | 'SEEN' | 'READY' | 'HEADING_OUT';
+/** 링크 안 엶 → 링크 엶 → 준비됐어요 → 로비로 나가는 중 → 로비 도착 */
+export type PassengerReadiness = 'UNSEEN' | 'SEEN' | 'READY' | 'HEADING_OUT' | 'AT_LOBBY';
 export interface Visit {
   id: string;
   facilityId: string;

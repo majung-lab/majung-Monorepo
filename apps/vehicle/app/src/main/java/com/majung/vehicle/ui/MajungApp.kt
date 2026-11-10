@@ -154,7 +154,7 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
             Screen.MOVING -> MovingScreen(context, point?.name.orEmpty(),
                 etaMin = snapshot?.vehicle?.etaSec?.let { ceil(it / 60.0).toInt() },
                 family = if (selectedMode != VisitMode.PICKUP || driving) null else FamilyStatus(when (visit?.passengerReadiness) {
-                    "READY" -> "준비됐어요"; "HEADING_OUT" -> "나오는 중이에요"; "SEEN" -> "링크를 열었어요"; else -> "아직 링크를 안 열었어요"
+                    "AT_LOBBY" -> "로비에 도착했어요"; "READY" -> "준비됐어요"; "HEADING_OUT" -> "나오는 중이에요"; "SEEN" -> "링크를 열었어요"; else -> "아직 링크를 안 열었어요"
                 }, familyDetail(snapshot) ?: "동승자 기기에서 보낸 상태"),
                 weather = model.placeWeather?.weather?.let { "도착지 날씨 · ${it.summary}" }, rainy = model.placeWeather?.weather?.rainSoon == true,
                 heading = if (visit?.phase == "ARRIVED") "목적지에 도착했어요" else when (selectedMode) { VisitMode.PICKUP -> "픽업 장소로 가는 중"; VisitMode.DROPOFF -> "내릴 곳으로 가는 중"; VisitMode.PARK -> "목적지로 가는 중" },

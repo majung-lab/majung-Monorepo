@@ -254,7 +254,7 @@ components:
         phase: &phase { type: string, enum: [PREPARING, MOVING, ARRIVED, COMPLETED, CANCELLED] }
         confirmedAccessPointId: { type: string }
         version: &version { type: integer, minimum: 1 }
-        passengerReadiness: &readiness { type: string, enum: [UNSEEN, SEEN, READY, HEADING_OUT] }
+        passengerReadiness: &readiness { type: string, enum: [UNSEEN, SEEN, READY, HEADING_OUT, AT_LOBBY], description: 'Link not opened, opened, ready, heading to the lobby, at the lobby.' }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         parkingFloor: { type: [string, 'null'] }
