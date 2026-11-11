@@ -83,7 +83,8 @@ fun MovingScreen(
                     Modifier.padding(start = 8.dp).then(if (onRetryNavi != null) Modifier.clickable(onClick = onRetryNavi) else Modifier),
                     if (onRetryNavi != null) Ink.accent else Ink.sub, 18.sp,
                 )
-                Text(etaMin?.let { "· 약 ${it}분" } ?: "· ETA 정보 없음", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
+                // 다시 시도·다시 안내가 뜰 때는 남은 시간이 없으므로 붙이지 않는다 (긴 문구가 두 줄로 꺾이지 않게)
+                if (onRetryNavi == null) Text(etaMin?.let { "· 약 ${it}분" } ?: "· ETA 정보 없음", Modifier.padding(start = 8.dp), Ink.sub, 18.sp)
             }
             weather?.let {
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
