@@ -161,9 +161,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onArrived = { if (visit?.phase == "ARRIVED") screen = Screen.ARRIVAL else model.phase("ARRIVED") { screen = Screen.ARRIVAL } },
                 onChangePlace = if (driving || mapPoints.size < 2) null else ({ screen = if (selectedMode == VisitMode.PICKUP) Screen.MOVE_PIN else Screen.PLACE }),
                 onCancelVisit = if (driving) null else ({ model.phase("CANCELLED") { finish() } }),
-                navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; else -> "내비 연결 전" },
+                navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; "ended" -> NaviStatus.ENDED.label; else -> "내비 연결 전" },
                 onShowNavi = model::showNavi,
-                onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || (model.naviStatus == null && snapshot?.vehicle?.navResult == "failed")) model::retryNavi else null,
+                onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || model.naviStatus == NaviStatus.ENDED || (model.naviStatus == null && snapshot?.vehicle?.navResult in listOf("failed", "ended"))) model::retryNavi else null,
                 banner = ownResult?.let { proposal -> {
                     val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; "CANCELLED" -> ProposalResult.CANCELLED_BY_ME; else -> ProposalResult.TIMEOUT }
                     ResultBanner(result, facility?.accessPoints?.firstOrNull { it.id == proposal.fromAccessPointId }?.name.orEmpty(),

@@ -102,7 +102,10 @@ export interface VehicleStatus {
   lat: number | null;
   lng: number | null;
   etaSec: number | null;
-  navResult: 'set' | 'failed' | null;
+  /** ended: 운전자가 내비 안내를 끔. 이때는 남은 시간을 모르고 차 위치만 계속 온다 */
+  navResult: 'set' | 'failed' | 'ended' | null;
+  /** 안내를 끈 시각. 다시 안내하거나 만날 곳이 바뀌면 null */
+  navEndedAt: string | null;
   recordedAt: string;
 }
 export interface PassengerLocation { lat: number; lng: number; recordedAt: string }
@@ -140,7 +143,7 @@ export interface UpdateVisitRequest extends MutationRequest {
   /** Passenger-only */
   passengerConditions?: MoveConditions;
   parkingFloor?: string | null;
-  vehicle?: { lat: number | null; lng: number | null; etaSec: number | null; navResult?: 'set' | 'failed' };
+  vehicle?: { lat: number | null; lng: number | null; etaSec: number | null; navResult?: 'set' | 'failed' | 'ended' };
 }
 /** Exactly one of accessPointId (registered point) or location (free map pin). */
 export interface CreateProposalRequest extends MutationRequest { accessPointId?: string; location?: { lat: number; lng: number }; reason?: string }

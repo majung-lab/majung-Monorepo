@@ -46,11 +46,14 @@ class VehicleViewModel @JvmOverloads constructor(
     var placeWeather by mutableStateOf<FacilityWeatherDto?>(null); private set
     /** 내비가 알려 준 지금 목적지까지 남은 시간(초). 위치와 함께 서버로 보낸다. 목적지가 바뀌면 지운다 */
     private var etaSec: Int? = null
+    /** 내비가 안내를 시작한 시각. 새 목적지를 넣으면 이전 경로가 취소 이벤트로 오므로 직후의 종료는 무시한다 */
+    private var guidingSince = 0L
     private var placeWeatherKey: String? = null
 
     init {
         navi.watchArrival(::onNaviArrived)
         navi.watchEta(::onNaviEta)
+        navi.watchGuidanceEnded(::onNaviEnded)
         refresh()
         scope.launch {
             while (isActive) {
@@ -168,7 +171,8 @@ class VehicleViewModel @JvmOverloads constructor(
         navi.requestRoute(point.name, point.lat, point.lng) { result ->
             if (prefs.getString("naviTarget", null) != key) return@requestRoute
             naviStatus = if (result is NaviResult.Guiding) NaviStatus.GUIDING else NaviStatus.FAILED
-            reportNavi(result is NaviResult.Guiding)
+            if (result is NaviResult.Guiding) guidingSince = System.currentTimeMillis()
+            reportNavi(if (result is NaviResult.Guiding) "set" else "failed")
         }
     }
 
@@ -180,7 +184,7 @@ class VehicleViewModel @JvmOverloads constructor(
      */
     private fun onNaviEta(remainSec: Int, destLat: Double?, destLng: Double?) {
         val value = snapshot ?: return
-        if (value.visit.phase != "MOVING" || remainSec < 0) return
+        if (value.visit.phase != "MOVING" || remainSec < 0 || naviStatus == NaviStatus.ENDED) return
         val point = value.facility.accessPoints.firstOrNull { it.id == value.visit.confirmedAccessPointId } ?: return
         if (destLat != null && destLng != null) {
             val d = FloatArray(1)
@@ -209,12 +213,36 @@ class VehicleViewModel @JvmOverloads constructor(
         phase("ARRIVED") { notice.bringToFront("마중 · ${point.name}", "도착했어요 · 가족에게 알렸어요") }
     }
 
+    /**
+     * 운전자가 내비에서 안내를 끄면 가족에게 알린다. 가족 화면은 남은 시간 대신 차 위치만 보여 준다.
+     * 도착으로 경로가 끝난 경우는 알리지 않는다: 잠시 기다려 도착 이벤트가 먼저 처리되게 하고, 차가 만날 곳 근처면 무시한다.
+     */
+    private fun onNaviEnded() {
+        if (snapshot?.visit?.phase != "MOVING" || naviStatus == NaviStatus.REQUESTING || naviStatus == NaviStatus.ENDED) return
+        if (System.currentTimeMillis() - guidingSince < IGNORE_END_AFTER_START_MS) return
+        scope.launch {
+            delay(3_000)
+            val value = snapshot ?: return@launch
+            if (value.visit.phase != "MOVING" || naviStatus == NaviStatus.REQUESTING || naviStatus == NaviStatus.ENDED) return@launch
+            val point = value.facility.accessPoints.firstOrNull { it.id == value.visit.confirmedAccessPointId }
+            val near = point != null && lastLocation?.let { here ->
+                val d = FloatArray(1)
+                Location.distanceBetween(here.latitude, here.longitude, point.lat, point.lng, d)
+                d[0] < ARRIVAL_RADIUS_M
+            } == true
+            if (near) return@launch
+            naviStatus = NaviStatus.ENDED
+            etaSec = null
+            reportNavi("ended")
+        }
+    }
+
     fun retryNavi() {
         prefs.edit().remove("naviTarget").apply()
         snapshot?.let(::requestNaviIfNeeded)
     }
 
-    private fun reportNavi(guiding: Boolean) {
+    private fun reportNavi(result: String) {
         scope.launch {
             lock.withLock {
                 // 위치 전송과 버전이 엇갈리면 최신 상태를 받아 한 번 더 보낸다
@@ -226,7 +254,7 @@ class VehicleViewModel @JvmOverloads constructor(
                             put("requestId", UUID.randomUUID().toString()); put("version", version)
                             putJsonObject("vehicle") {
                                 put("lat", lastLocation?.latitude); put("lng", lastLocation?.longitude)
-                                put("etaSec", etaSec); put("navResult", if (guiding) "set" else "failed")
+                                put("etaSec", etaSec); put("navResult", result)
                             }
                         }))
                         return@withLock
@@ -386,9 +414,11 @@ class VehicleViewModel @JvmOverloads constructor(
 }
 
 private const val ARRIVAL_RADIUS_M = 300f
+private const val IGNORE_END_AFTER_START_MS = 5_000L
 
 enum class NaviStatus(val label: String) {
     REQUESTING("내비에 목적지 넣는 중"),
     GUIDING("내비 안내 중"),
     FAILED("내비에 넣지 못했어요 · 다시 시도"),
+    ENDED("내비 안내를 종료했어요 · 다시 안내"),
 }

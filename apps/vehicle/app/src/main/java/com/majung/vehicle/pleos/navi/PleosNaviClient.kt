@@ -29,6 +29,7 @@ class PleosNaviClient(context: Context) : NaviClient {
     private var pending: ((NaviResult) -> Unit)? = null
     private var arrived: ((String) -> Unit)? = null
     private var eta: ((Int, Double?, Double?) -> Unit)? = null
+    private var ended: (() -> Unit)? = null
     private val timeout = Runnable { finish(NaviResult.Failed("내비 응답 없음")) }
 
     private val listener = object : NaviHelperEventListener {
@@ -38,11 +39,15 @@ class PleosNaviClient(context: Context) : NaviClient {
         }
         override fun onDestinationInfo(info: DestinationInfo) {
             Log.d(TAG, "onDestinationInfo remainTime=${info.remainTime} remainDistance=${info.remainDistance}")
-            // 안내 중인 경로가 없으면 남은 시간·거리가 0으로 온다
-            if (info.remainTime <= 0 && info.remainDistance <= 0) return
+            // 안내 중인 경로가 없으면 남은 시간·거리가 0으로 온다. 안내 중이라 믿고 물었는데 경로가 없으면
+            // 마중이 꺼져 있던 동안 안내가 끝난 것이므로 종료로 알린다 (받는 쪽에서 도착·새 경로 직후는 가린다)
+            if (info.remainTime <= 0 && info.remainDistance <= 0) { main.post { ended?.invoke() }; return }
             main.post { eta?.invoke(toSeconds(info.remainTime), info.latitude, info.longitude) }
         }
         override fun onDestinationArrived(info: DestinationArrivedInfo) { main.post { arrived?.invoke(info.name) } }
+        // 내비 화면의 "안내 종료"는 취소로, 경로가 끝나면 종료로 온다. 둘 다 같은 뜻으로 넘긴다
+        override fun onRouteCancelled() { Log.d(TAG, "onRouteCancelled"); main.post { ended?.invoke() } }
+        override fun onRouteEnded() { Log.d(TAG, "onRouteEnded"); main.post { ended?.invoke() } }
         override fun onError(errorCode: NaviErrorCode) { main.post { finish(NaviResult.Failed(errorCode.name)) } }
     }
 
@@ -73,6 +78,10 @@ class PleosNaviClient(context: Context) : NaviClient {
 
     override fun watchEta(onEta: (remainSec: Int, destLat: Double?, destLng: Double?) -> Unit) {
         main.post { eta = onEta }
+    }
+
+    override fun watchGuidanceEnded(onEnded: () -> Unit) {
+        main.post { ended = onEnded }
     }
 
     /** 연결돼 있을 때만 묻는다 (남은 시간 때문에 내비 연결을 새로 열지 않는다) */
@@ -109,6 +118,7 @@ class PleosNaviClient(context: Context) : NaviClient {
             pending = null
             arrived = null
             eta = null
+            ended = null
             main.removeCallbacks(timeout)
         }
     }

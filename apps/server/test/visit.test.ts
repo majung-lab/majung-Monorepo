@@ -250,3 +250,32 @@ test('the navigation result survives location updates and is cleared when the me
     assert.equal(accepted.vehicle.navResult,null);
   }finally{await app.close();db.close();}
 });
+
+test('운전자가 내비 안내를 끄면 남은 시간은 지우고 차 위치는 계속 보여 준다. 다시 안내하면 돌아온다', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'end-create'}})).json();
+    const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+    const patch=async(requestId:string,version:number,payload:object)=>(await app.inject({method:'PATCH',url:driver,payload:{requestId,version,...payload}})).json();
+    let s=await patch('end-move',1,{phase:'MOVING'});
+    s=await patch('end-set',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:600,navResult:'set'}});
+    assert.equal(s.vehicle.etaSec,600); assert.equal(s.vehicle.navEndedAt,null);
+
+    s=await patch('end-ended',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:540,navResult:'ended'}});
+    assert.equal(s.vehicle.navResult,'ended'); assert.equal(s.vehicle.etaSec,null); assert.ok(s.vehicle.navEndedAt);
+
+    // 끈 뒤에도 위치는 갱신되고, 남은 시간이 실려 와도 버린다. 링크를 다시 열어도 같은 상태
+    s=await patch('end-location',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:500}});
+    const reopened=(await app.inject({method:'GET',url:passenger})).json();
+    assert.deepEqual([reopened.vehicle.lat,reopened.vehicle.lng,reopened.vehicle.etaSec,reopened.vehicle.navResult],[37.542,127.222,null,'ended']);
+
+    s=await patch('end-again',s.visit.version,{vehicle:{lat:37.543,lng:127.223,etaSec:420,navResult:'set'}});
+    assert.equal(s.vehicle.navResult,'set'); assert.equal(s.vehicle.etaSec,420); assert.equal(s.vehicle.navEndedAt,null);
+
+    // 만날 곳이 바뀌어도 종료 표시는 지운다
+    s=await patch('end-ended-2',s.visit.version,{vehicle:{lat:37.543,lng:127.223,etaSec:null,navResult:'ended'}});
+    const proposed=(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId:'end-propose',version:s.visit.version,accessPointId:'1'}})).json();
+    const accepted=(await app.inject({method:'POST',url:driver+`/proposals/${proposed.proposals[0].id}/respond`,payload:{requestId:'end-accept',version:proposed.visit.version,accept:true}})).json();
+    assert.equal(accepted.vehicle.navResult,null); assert.equal(accepted.vehicle.navEndedAt,null);
+  }finally{await app.close();db.close();}
+});
