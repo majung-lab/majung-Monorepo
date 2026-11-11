@@ -19,6 +19,7 @@ import com.majung.vehicle.data.remote.dto.AccessPointDto
 import com.majung.vehicle.data.remote.dto.RankedAccessPointDto
 import com.majung.vehicle.data.remote.dto.VisitSnapshot
 import com.majung.vehicle.domain.model.*
+import com.majung.vehicle.pleos.voice.VoiceGuide
 import com.majung.vehicle.ui.arrival.*
 import com.majung.vehicle.ui.destination.DestinationScreen
 import com.majung.vehicle.ui.history.HistoryScreen
@@ -215,7 +216,13 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 driving, response = when (proposal.status) { "ACCEPTED" -> true; "REJECTED", "EXPIRED", "CANCELLED" -> false; else -> null },
                 fromPosition = LatLng(from.lat, from.lng), toPosition = LatLng(to.lat, to.lng),
                 onAccept = { model.respond(proposal.id, true) }, onReject = { model.respond(proposal.id, false) },
-                onContinue = { dismissedProposal = proposal.id; proposalId = null })
+                onContinue = { dismissedProposal = proposal.id; proposalId = null },
+                voiceHint = when (val v = model.voiceState) {
+                    VoiceGuide.State.Speaking -> "제안을 읽어 드리고 있어요"
+                    VoiceGuide.State.Listening -> "듣고 있어요 · ‘바꿔’ 또는 ‘그대로’라고 말해 주세요"
+                    is VoiceGuide.State.Heard -> "들은 말 · ‘${v.text}’"
+                    VoiceGuide.State.Idle -> null
+                })
         }
         if (driving && screen !in SHOWN_WHILE_DRIVING && shownProposal == null) {
             Box(Modifier.fillMaxSize().background(Ink.bg).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}, contentAlignment = Alignment.Center) {

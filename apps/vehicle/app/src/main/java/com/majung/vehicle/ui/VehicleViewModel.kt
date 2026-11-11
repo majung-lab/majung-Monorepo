@@ -15,6 +15,7 @@ import com.majung.vehicle.domain.model.VisitMode
 import com.majung.vehicle.pleos.navi.NaviClient
 import com.majung.vehicle.pleos.navi.NaviResult
 import com.majung.vehicle.pleos.navi.PleosNaviClient
+import com.majung.vehicle.pleos.voice.VoiceGuide
 import java.util.UUID
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -49,6 +50,11 @@ class VehicleViewModel @JvmOverloads constructor(
     /** 내비가 안내를 시작한 시각. 새 목적지를 넣으면 이전 경로가 취소 이벤트로 오므로 직후의 종료는 무시한다 */
     private var guidingSince = 0L
     private var placeWeatherKey: String? = null
+    /** 가족 제안을 말로 묻고 듣는 상태 (화면 표시용). 음성 엔진이 없으면 계속 Idle */
+    var voiceState by mutableStateOf<VoiceGuide.State>(VoiceGuide.State.Idle); private set
+    private val voice: VoiceGuide? = runCatching { VoiceGuide(application).also { it.onState = { s -> voiceState = s } } }
+        .onFailure { android.util.Log.w("VoiceGuide", "음성 엔진 없음", it) }.getOrNull()
+    private var askedProposal: String? = null
 
     init {
         navi.watchArrival(::onNaviArrived)
@@ -147,10 +153,13 @@ class VehicleViewModel @JvmOverloads constructor(
             "ARRIVED" -> notice.show(title, "도착했어요 · 눌러서 마중 열기")
             else -> { notice.stop(); return }
         }
-        value.proposals.firstOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" }?.let { p ->
+        val pending = value.proposals.firstOrNull { it.proposedBy == "PASSENGER" && it.status == "PENDING" }
+        pending?.let { p ->
             val to = value.facility.accessPoints.firstOrNull { it.id == p.accessPointId }?.name ?: "지도에서 고른 위치"
             notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", to)
+            if (p.id != askedProposal) { askedProposal = p.id; askByVoice(p.id, to) }
         }
+        if (pending == null) voice?.cancel()   // 화면에서 먼저 답했거나 가족이 취소했다
         if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", point)
         if (visit.passengerReadiness == "AT_LOBBY") notice.alert("lobby:${visit.id}", "가족이 로비에 도착했어요", point)
     }
@@ -177,6 +186,21 @@ class VehicleViewModel @JvmOverloads constructor(
     }
 
     fun showNavi() = navi.showNavi()
+
+    /** 주행 중에도 눈을 떼지 않고 답하도록 제안을 읽어 주고 한 번 듣는다. 못 알아들으면 화면 응답을 기다린다 */
+    private fun askByVoice(id: String, to: String) {
+        val v = voice ?: return
+        v.ask("가족이 만날 곳을 $to 쪽으로 바꾸자고 해요. 바꾸려면 바꿔, 그대로 가려면 그대로라고 말해 주세요.") { answer ->
+            when (answer) {
+                true -> { respond(id, true); v.say("목적지를 $to 쪽으로 바꿨어요. 새 장소로 다시 안내할게요.") }
+                false -> { respond(id, false); v.say("기존 장소로 계속 안내할게요.") }
+                null -> v.say("잘 알아듣지 못했어요. 차를 세운 뒤 화면에서 답해 주세요.")
+            }
+        }
+    }
+
+    /** 디버그 빌드에서 에뮬레이터 대신 들은 말을 넣는다 */
+    fun injectVoice(text: String) = voice?.inject(text)
 
     /**
      * 내비의 남은 시간. 내비가 마중 장소가 아닌 곳(300m 밖)을 안내 중이면 쓰지 않는다.
@@ -410,7 +434,7 @@ class VehicleViewModel @JvmOverloads constructor(
         }
     }
 
-    override fun onCleared() { navi.release(); scope.cancel() }
+    override fun onCleared() { navi.release(); voice?.release(); scope.cancel() }
 }
 
 private const val ARRIVAL_RADIUS_M = 300f

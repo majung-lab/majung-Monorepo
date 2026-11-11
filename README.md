@@ -19,7 +19,7 @@
 | <img src="docs/images/qr.png" width="420" alt="QR 한 번으로 가족 연결"> | **QR 한 번으로 가족 연결**<br>방문을 시작하면 차량 화면에 QR이 뜹니다. 가족은 휴대폰 카메라로 찍기만 하면 앱 설치·가입 없이 같은 방문에 참여합니다. 링크는 24시간 뒤 만료됩니다. |
 | <img src="docs/images/family-advice.png" width="220" alt="가족 화면"> | **가족이 있는 곳과 조건으로 다시 추천**<br>가족은 "지금 어디 계세요?"에서 대기 지점(로비·가족휴게실)과 이동 조건(유모차·짐 많음·계단 피하기·실내로만)을 고릅니다. 마중은 그 자리에서 각 승하차 지점까지의 동선을 비교해, 계단이 있거나 유모차로 갈 수 없는 곳은 제외 이유와 함께 빼고 더 나은 곳을 추천합니다. "여기로 바꾸자고 하기"로 바로 제안합니다. |
 | <img src="docs/images/navi-banner.png" width="420" alt="내장 내비와 마중 배너"> | **차량 내장 내비 연동**<br>출발하면 확정된 승하차 지점이 Pleos 내장 내비의 목적지로 자동 입력되고, 안내 시작 이벤트로 결과를 확인합니다. 내비를 보는 동안에도 화면 위의 마중 배너와 알림 카드로 가족의 준비 상태와 제안을 놓치지 않습니다. |
-| <img src="docs/images/driving-proposal.png" width="420" alt="주행 중에는 정차 후 응답"> | **주행 중 안전**<br>주행 중에는 화면을 꼭 필요한 것만 남기고, 가족의 장소 변경 제안은 "정차하면 수락·거절할 수 있어요 · 그동안 기존 장소로 안내"로 미룹니다. 정차 후 수락하면 내비 목적지가 새 장소로 바뀝니다. |
+| <img src="docs/images/driving-proposal.png" width="420" alt="주행 중에는 정차 후 응답"> | **주행 중 안전 · 음성 응답**<br>주행 중에는 화면을 꼭 필요한 것만 남깁니다. 가족의 장소 변경 제안이 오면 Pleos TextToSpeech로 읽어 주고, SpeechToText로 "바꿔"·"그대로" 대답을 한 번 듣습니다. 바꾸자고 답하면 주행 중에도 내비 목적지가 새 장소로 바뀝니다. 알아듣지 못하면 기존 장소로 안내를 이어 가고, 정차 후 버튼으로 답할 수 있습니다. |
 | <img src="docs/images/family-eta.png" width="220" alt="가족 화면의 도착 예정 시간"> | **도착 예정 시간과 준비 상태 공유**<br>내비가 알려 주는 남은 시간을 받아 가족 화면에 "약 30분 · 21:58"로 보여 줍니다. 가족은 "준비됐어요 → 지금 나갈게요 → 로비에 도착했어요"를 눌러 운전석에 알립니다. |
 | <img src="docs/images/review.png" width="420" alt="장소 평가"> | **탑승 확인과 장소 평가**<br>도착하면 가족이 모두 탔는지 확인하고, 이번 승하차 지점을 "좋았어요·보통·별로"와 이유 태그로 평가합니다. 평가는 다음 추천 순서에 반영됩니다. |
 | <img src="docs/images/history.png" width="420" alt="목적지 기록"> | **목적지 기록과 다시 가기**<br>기록에는 그날의 날씨와 평가가 남고, "다시 가기" 한 번으로 같은 장소의 방문을 바로 시작합니다. 앱이나 시동을 다시 켜도 서버에 저장된 진행 중인 방문으로 돌아옵니다. |
@@ -33,9 +33,12 @@
 | | `getDestinationInfo` / `onDestinationInfo` | 안내 중 남은 시간·거리를 받아 가족 화면의 도착 예정 시간으로 공유한다(목적지가 마중 장소가 아니면 쓰지 않음) | 〃, [VehicleViewModel.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/VehicleViewModel.kt) |
 | | `requestNavigationScreen` | "내비 보기"로 내비 화면을 앞으로 띄운다 | 〃 |
 | | `onDestinationArrived` | 내비 도착 이벤트로 도착을 처리한다(도착지 이름이 같거나 300m 안일 때만) | 〃 |
-| Android Car API | `CarUxRestrictionsManager` | 주행 상태에 따라 화면·조작을 제한한다(제안 응답·장소 변경·방문 취소는 정차 후) | [UxRestrictionWatcher.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/core/uxrestriction/UxRestrictionWatcher.kt) |
+| | `onRouteCancelled` / `onRouteEnded` | 운전자가 안내를 끄면 가족에게 알리고, 남은 시간 대신 차 위치만 계속 공유한다(기다리던 장소 변경 제안도 닫음) | 〃 |
+| Pleos TextToSpeech | `speak` (ON_DEVICE, ko-KR) | 가족의 장소 변경 제안을 소리로 읽어 준다 | [VoiceGuide.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/pleos/voice/VoiceGuide.kt) |
+| Pleos SpeechToText | `request` / `ResultListener.onUpdated` | 제안을 읽은 뒤 한 번(최대 8초) 듣고 "바꿔"·"그대로"로 응답한다 | 〃 |
+| Android Car API | `CarUxRestrictionsManager` | 주행 상태에 따라 화면·조작을 제한한다(제안 버튼 응답·장소 변경·방문 취소는 정차 후. 제안은 주행 중에도 음성으로 응답) | [UxRestrictionWatcher.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/core/uxrestriction/UxRestrictionWatcher.kt) |
 | Android | 포그라운드 서비스 · 오버레이 · 알림 | 내비 위 마중 배너, 새 소식 카드, 백그라운드 위치·상태 동기화 | [core/notice](apps/vehicle/app/src/main/java/com/majung/vehicle/core/notice) |
-| 권한 | `pleos.car.permission.NAVI_ROUTE`, `NAVI_ROUTE_SEARCH` | 경로 요청 | [AndroidManifest.xml](apps/vehicle/app/src/main/AndroidManifest.xml) |
+| 권한 | `pleos.car.permission.NAVI_ROUTE`, `NAVI_ROUTE_SEARCH`, `TTS_SERVICE`, `STT_SERVICE`, `RECORD_AUDIO` | 경로 요청, 음성 안내·응답 | [AndroidManifest.xml](apps/vehicle/app/src/main/AndroidManifest.xml) |
 
 큰 Pleos 화면(2560×1440)에서는 앱이 자동으로 커지고([PanelScale.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/theme/PanelScale.kt)), 모든 화면을 Pleos 에뮬레이터에서 확인했습니다.
 

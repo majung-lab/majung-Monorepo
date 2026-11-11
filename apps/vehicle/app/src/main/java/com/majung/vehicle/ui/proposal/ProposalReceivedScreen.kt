@@ -62,6 +62,8 @@ fun ProposalReceivedScreen(
     response: Boolean? = null,
     fromPosition: LatLng? = null,
     toPosition: LatLng? = null,
+    /** 말로 묻고 듣는 중이면 그 상태 문구 (예: 듣고 있어요) */
+    voiceHint: String? = null,
 ) {
     val accepted = response
 
@@ -123,9 +125,15 @@ fun ProposalReceivedScreen(
                 Ink.sub, 14.sp,
             )
             Spacer(Modifier.weight(1f))
+            if (accepted == null && voiceHint != null) Text(
+                voiceHint,
+                Modifier.padding(bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ink.raised)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                Ink.accent, 18.sp, fontWeight = FontWeight.Bold, lineHeight = 24.sp,
+            )
             when {
                 accepted != null -> PrimaryButton("안내 계속", onContinue, Modifier.fillMaxWidth())
-                driving -> Text("정차하면 수락·거절할 수 있어요 · 그동안 기존 장소로 안내", color = Ink.sub, fontSize = 18.sp)
+                driving -> Text("말로 답하거나 정차 후 버튼으로 답해요\n그동안 기존 장소로 안내해요", color = Ink.sub, fontSize = 18.sp)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SecondaryButton("제안 거절", onReject, Modifier.weight(1f))
                     PrimaryButton("목적지 바꾸기", onAccept, Modifier.weight(1.4f))

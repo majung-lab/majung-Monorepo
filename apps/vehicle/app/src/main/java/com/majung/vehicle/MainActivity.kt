@@ -1,6 +1,10 @@
 package com.majung.vehicle
 
 import android.os.Bundle
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.LocationListener
@@ -18,6 +22,8 @@ import com.majung.vehicle.core.uxrestriction.UxRestrictionWatcher
 import com.majung.vehicle.ui.MajungApp
 import com.majung.vehicle.ui.theme.ScaleToPanel
 
+private const val VOICE_TEST = "com.majung.vehicle.VOICE_TEST"
+
 class MainActivity : ComponentActivity() {
     private lateinit var uxRestriction: UxRestrictionWatcher
     private lateinit var model: VehicleViewModel
@@ -29,12 +35,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         uxRestriction = UxRestrictionWatcher(this)
         model = ViewModelProvider(this)[VehicleViewModel::class.java]
-        requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.POST_NOTIFICATIONS))
+        requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.RECORD_AUDIO))
+        if (BuildConfig.DEBUG) registerReceiver(voiceTest, IntentFilter(VOICE_TEST), RECEIVER_EXPORTED)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 ScaleToPanel { MajungApp(uxRestriction, model) }
             }
         }
+    }
+
+    // ponytail: 에뮬레이터 마이크 대신 adb로 들은 말을 넣는다 (디버그 빌드만)
+    // adb shell am broadcast -a com.majung.vehicle.VOICE_TEST --es text 바꿔
+    private val voiceTest = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { intent.getStringExtra("text")?.let(model::injectVoice) }
     }
 
     private fun startLocation() {
@@ -64,6 +77,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         locations?.removeUpdates(locationListener)
         uxRestriction.release()
+        if (BuildConfig.DEBUG) unregisterReceiver(voiceTest)
         super.onDestroy()
     }
 }

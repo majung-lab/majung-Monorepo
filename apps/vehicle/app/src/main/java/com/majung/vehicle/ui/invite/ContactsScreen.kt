@@ -157,11 +157,11 @@ private fun ContactRow(contact: PhoneContact, sending: Boolean, sent: Boolean, e
     ) {
         Column(Modifier.weight(1f)) {
             Text(contact.name, color = Ink.text, fontSize = 20.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-            Text(contact.number, color = Ink.sub, fontSize = 15.sp)
+            Text(contact.number, color = Ink.sub, fontSize = 15.sp, maxLines = 1, softWrap = false)
         }
         val (label, color) = when {
             sending -> "보내는 중…" to Ink.sub
-            sent -> "보냄 · 다시 보내기" to Ink.ok
+            sent -> "다시 보내기" to Ink.ok
             else -> "보내기" to Ink.accent
         }
         Text(label, Modifier.clip(RoundedCornerShape(10.dp)).background(Ink.raised).padding(horizontal = 14.dp, vertical = 8.dp), color, 16.sp, fontWeight = FontWeight.Bold)

@@ -60,6 +60,8 @@ private val SCREENS: List<Pair<String, @Composable () -> Unit>> = listOf<Pair<St
     "C10_move_pin" to { MovePinScreen("서문 로비") },
     "C11_proposal_received" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL) },
     "C11_proposal_received_driving" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL, driving = true) },
+    "C11_proposal_voice_listening" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL, voiceHint = "듣고 있어요 · ‘바꿔’ 또는 ‘그대로’라고 말해 주세요") },
+    "C11_proposal_voice_driving" to { ProposalReceivedScreen(SAMPLE_FAMILY_PROPOSAL, driving = true, voiceHint = "듣고 있어요 · ‘바꿔’ 또는 ‘그대로’라고 말해 주세요") },
 ) + C12
 
 @RunWith(RobolectricTestRunner::class)
