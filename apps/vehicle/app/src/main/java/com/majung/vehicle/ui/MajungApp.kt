@@ -109,6 +109,10 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
         }
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
+    // 안내를 꺼서 닫힌 제안은 결과 화면 없이 바로 닫는다
+    LaunchedEffect(shownProposal?.cancelReason) {
+        if (shownProposal?.cancelReason == "NAV_ENDED") { dismissedProposal = shownProposal.id; proposalId = null }
+    }
     // C04·C06에서 그 시설·모드의 날씨와 추천 순서를 받고, 머무는 동안 10분마다 갱신한다
     val wantsWeather = screen == Screen.PLACE || screen == Screen.MOVING || screen == Screen.ARRIVAL
     LaunchedEffect(wantsWeather, facility?.id, selectedMode) {

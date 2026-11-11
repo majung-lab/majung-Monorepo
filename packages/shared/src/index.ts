@@ -95,6 +95,8 @@ export interface MeetingProposal {
   baseVersion: number;
   status: ProposalStatus;
   reason?: string;
+  /** CANCELLED인 이유. NAV_ENDED: 운전자가 내비 안내를 꺼서 기다리던 제안이 닫힘 */
+  cancelReason?: 'NAV_ENDED';
   createdAt: string;
   expiresAt: string;
 }

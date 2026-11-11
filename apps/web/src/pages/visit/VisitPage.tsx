@@ -50,6 +50,7 @@ export default function VisitPage() {
   const endedKey = `majung:seen-nav-ended:${token}`;
   const [endedSeen, setEndedSeen] = useState(() => { try { return localStorage.getItem(endedKey); } catch { return null; } });
   const showEnded = navEnded && !!vehicle?.navEndedAt && endedSeen !== vehicle.navEndedAt;
+  const proposalClosed = proposals.some((p) => p.proposedBy === 'PASSENGER' && p.cancelReason === 'NAV_ENDED');
   const closeEnded = (thenCar: boolean) => {
     const at = vehicle?.navEndedAt ?? '';
     try { localStorage.setItem(endedKey, at); } catch { /* 저장 못 해도 이번 화면에서는 닫는다 */ }
@@ -179,7 +180,7 @@ export default function VisitPage() {
       {showEnded && <div className="dialog-backdrop" role="presentation">
         <div className="dialog" role="alertdialog" aria-labelledby="nav-ended-title" aria-describedby="nav-ended-body">
           <p id="nav-ended-title" className="dialog-title">운전자가 안내를 종료했어요</p>
-          <p id="nav-ended-body" className="dialog-body">그래서 정확한 도착 시간은 알 수 없어요. 차 위치는 지도에서 계속 실시간으로 보여 드려요.</p>
+          <p id="nav-ended-body" className="dialog-body">그래서 정확한 도착 시간은 알 수 없어요. 차 위치는 지도에서 계속 실시간으로 보여 드려요.{proposalClosed && ` 보낸 장소 변경 제안도 취소됐어요. ${meet.name}에서 만나요.`}</p>
           <div className="dialog-actions">
             <button className="btn-outline-accent" onClick={() => closeEnded(false)}>확인</button>
             <button className="btn-primary" disabled={!car} onClick={() => closeEnded(true)}>차 위치 보기</button>

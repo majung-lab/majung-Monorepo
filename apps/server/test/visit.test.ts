@@ -261,8 +261,13 @@ test('운전자가 내비 안내를 끄면 남은 시간은 지우고 차 위치
     s=await patch('end-set',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:600,navResult:'set'}});
     assert.equal(s.vehicle.etaSec,600); assert.equal(s.vehicle.navEndedAt,null);
 
-    s=await patch('end-ended',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:540,navResult:'ended'}});
+    // 동승자가 보낸 제안이 기다리는 중에 안내를 끄면 제안도 닫힌다
+    const waiting=(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId:'end-wait-propose',version:s.visit.version,accessPointId:'1'}})).json();
+    assert.equal(waiting.proposals[0].status,'PENDING');
+    s=await patch('end-ended',waiting.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:540,navResult:'ended'}});
     assert.equal(s.vehicle.navResult,'ended'); assert.equal(s.vehicle.etaSec,null); assert.ok(s.vehicle.navEndedAt);
+    assert.equal(s.proposals[0].status,'CANCELLED'); assert.equal(s.proposals[0].cancelReason,'NAV_ENDED');
+    assert.equal(s.visit.confirmedAccessPointId,'2'); // 만날 곳은 그대로
 
     // 끈 뒤에도 위치는 갱신되고, 남은 시간이 실려 와도 버린다. 링크를 다시 열어도 같은 상태
     s=await patch('end-location',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:500}});

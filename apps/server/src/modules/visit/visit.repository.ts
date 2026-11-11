@@ -103,8 +103,8 @@ export function createVisitRepository(db: Db) {
       JOIN participant p ON p.id=pr.proposer_id JOIN candidate c ON c.id=pr.candidate_id
       LEFT JOIN api_proposal_context ctx ON ctx.proposal_id=pr.id WHERE pr.visit_id=? ORDER BY pr.id DESC`,v.id).map(p=>({
         id:String(p.id),visitId:p.visit_id,proposedBy:p.role.toUpperCase() as Role,accessPointId:String(p.access_point_id),fromAccessPointId:String(p.from_access_point_id??toVisit(v).confirmedAccessPointId),baseVersion:p.base_version,
-        status:(p.status==='expired'&&p.responder_id===p.proposer_id?'CANCELLED':p.status==='pending'&&Date.now()>=Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS?'EXPIRED':p.status.toUpperCase()) as MeetingProposal['status'],
-        ...(p.reason_text?{reason:p.reason_text}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
+        status:(p.status==='expired'&&p.responder_id!==null?'CANCELLED':p.status==='pending'&&Date.now()>=Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS?'EXPIRED':p.status.toUpperCase()) as MeetingProposal['status'],
+        ...(p.reason_text?{reason:p.reason_text}:{}),...(p.status==='expired'&&p.responder_id!==null&&p.responder_id!==p.proposer_id?{cancelReason:'NAV_ENDED' as const}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
       vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
@@ -212,7 +212,11 @@ export function createVisitRepository(db: Db) {
         // 안내 종료(ended)는 원본 스키마의 nav_result 값에 없으므로 api_visit_state에 시각으로 남긴다.
         // 끈 동안에는 남은 시간을 믿을 수 없으니 버리고, 다시 안내(set)하거나 실패를 알리면 지운다
         const ended=pos.navResult==='ended';
-        if(ended) run('UPDATE api_visit_state SET nav_ended_at=? WHERE visit_id=?',iso(),v.id);
+        if(ended) {
+          run('UPDATE api_visit_state SET nav_ended_at=? WHERE visit_id=?',iso(),v.id);
+          // 안내를 끄면 기다리던 장소 변경 제안도 닫는다. 운전자가 닫은 것으로 남겨 동승자 제안은 NAV_ENDED로 보인다
+          run("UPDATE proposal SET status='expired',responder_id=?,responded_at=? WHERE visit_id=? AND status='pending'",a.id,iso(),v.id);
+        }
         else if(pos.navResult) run('UPDATE api_visit_state SET nav_ended_at=NULL WHERE visit_id=?',v.id);
         const stillEnded=ended||(!pos.navResult&&!!one<{nav_ended_at:string|null}>('SELECT nav_ended_at FROM api_visit_state WHERE visit_id=?',v.id)?.nav_ended_at);
         const eta=stillEnded?null:pos.etaSec;

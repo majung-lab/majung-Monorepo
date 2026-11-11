@@ -374,6 +374,7 @@ components:
         baseVersion: *version
         status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, EXPIRED, CANCELLED] }
         reason: { type: string }
+        cancelReason: { type: string, enum: [NAV_ENDED], description: CANCELLED인 이유. NAV_ENDED는 운전자가 내비 안내를 꺼서 기다리던 제안이 닫힘 }
         createdAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
     PlaceRating:
