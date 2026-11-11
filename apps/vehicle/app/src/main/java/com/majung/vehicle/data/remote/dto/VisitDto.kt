@@ -30,9 +30,9 @@ data class RankedAccessPointDto(val accessPointId: String, val recommended: Bool
 @Serializable
 data class FacilityWeatherDto(val weather: WeatherDto? = null, val ranking: List<RankedAccessPointDto>)
 @Serializable
-data class MeetingProposalDto(val id: String, val visitId: String, val proposedBy: String, val accessPointId: String, val fromAccessPointId: String, val baseVersion: Int, val status: String, val reason: String? = null, val createdAt: String, val expiresAt: String)
+data class MeetingProposalDto(val id: String, val visitId: String, val proposedBy: String, val accessPointId: String, val fromAccessPointId: String, val baseVersion: Int, val status: String, val reason: String? = null, val cancelReason: String? = null, val createdAt: String, val expiresAt: String)
 @Serializable
-data class VehicleStatusDto(val lat: Double? = null, val lng: Double? = null, val etaSec: Int? = null, val navResult: String? = null, val recordedAt: String)
+data class VehicleStatusDto(val lat: Double? = null, val lng: Double? = null, val etaSec: Int? = null, val navResult: String? = null, val navEndedAt: String? = null, val recordedAt: String)
 @Serializable
 data class PlaceRatingDto(val rating: Int, val tags: List<String>, val comment: String? = null)
 @Serializable

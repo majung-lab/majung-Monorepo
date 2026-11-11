@@ -15,6 +15,11 @@ interface NaviClient {
      * 이후 refreshEta 답에는 내비가 안내 중인 목적지 좌표가 함께 온다
      */
     fun watchEta(onEta: (remainSec: Int, destLat: Double?, destLng: Double?) -> Unit) {}
+    /**
+     * 운전자가 내비에서 안내를 끄면(안내 종료) 부른다. 이벤트를 놓쳤어도 refreshEta 답에 경로가 없으면 부른다.
+     * 도착으로 끝날 때도 올 수 있어 받는 쪽에서 가린다
+     */
+    fun watchGuidanceEnded(onEnded: () -> Unit) {}
     /** 남은 시간을 한 번 물어본다. 답은 watchEta로 온다 */
     fun refreshEta() {}
     fun release() {}

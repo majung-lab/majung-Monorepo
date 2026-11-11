@@ -43,7 +43,20 @@ export default function VisitPage() {
   const arrived = visit.phase === 'ARRIVED';
   const step = arrived ? 2 : visit.phase === 'MOVING' ? 1 : 0;
   const stale = !!vehicle && now - Date.parse(vehicle.recordedAt) > 60_000;
-  const etaSec = !stale && vehicle?.etaSec != null ? Math.max(0, vehicle.etaSec - (now - Date.parse(vehicle.recordedAt)) / 1000) : null;
+  // 운전자가 내비 안내를 끄면 남은 시간은 모른다. 차 위치는 계속 온다
+  const navEnded = vehicle?.navResult === 'ended' && visit.phase === 'MOVING';
+  const etaSec = !navEnded && !stale && vehicle?.etaSec != null ? Math.max(0, vehicle.etaSec - (now - Date.parse(vehicle.recordedAt)) / 1000) : null;
+  // 안내 종료 알림은 한 번만. 링크를 다시 열어도 확인한 알림은 다시 띄우지 않는다
+  const endedKey = `majung:seen-nav-ended:${token}`;
+  const [endedSeen, setEndedSeen] = useState(() => { try { return localStorage.getItem(endedKey); } catch { return null; } });
+  const showEnded = navEnded && !!vehicle?.navEndedAt && endedSeen !== vehicle.navEndedAt;
+  const proposalClosed = proposals.some((p) => p.proposedBy === 'PASSENGER' && p.cancelReason === 'NAV_ENDED');
+  const closeEnded = (thenCar: boolean) => {
+    const at = vehicle?.navEndedAt ?? '';
+    try { localStorage.setItem(endedKey, at); } catch { /* 저장 못 해도 이번 화면에서는 닫는다 */ }
+    setEndedSeen(at);
+    if (thenCar) choose('car');
+  };
 
   const choose = (v: MapView) => {
     const m = map.current;
@@ -82,7 +95,7 @@ export default function VisitPage() {
     <main className="screen">
       <KakaoMap center={pointPosition(facility)} markers={markers} fitTo={[meetPos, ...(car ? [car] : []), ...(me ? [me] : [])]} mapRef={map}>
         <span className="chip chip-brand">마중</span>
-        <span className="chip chip-time">{hhmm(visit.updatedAt)} 갱신</span>
+        <span className="chip chip-time">{navEnded && vehicle ? `차 위치 ${hhmm(vehicle.recordedAt)}` : `${hhmm(visit.updatedAt)} 갱신`}</span>
         <button className="zoom" style={{ top: 64 }} aria-label="지도 확대" onClick={() => map.current?.zoomIn()}>+</button>
         <button className="zoom" style={{ top: 116 }} aria-label="지도 축소" onClick={() => map.current?.zoomOut()}>−</button>
         <div className="map-views">
@@ -108,8 +121,9 @@ export default function VisitPage() {
         </p>}
         <div className="eta">
           <div>
-            <p className="sub">{arrived ? '운전자가 도착을 확인했어요' : visit.phase === 'PREPARING' ? '운전자가 출발을 준비하고 있어요' : '차가 오고 있어요'}</p>
-            <p className="eta-min">{arrived ? meet.name : etaSec != null ? `약 ${Math.ceil(etaSec / 60)}분` : '도착 시간 확인 중'}</p>
+            <p className="sub">{arrived ? '운전자가 도착을 확인했어요' : visit.phase === 'PREPARING' ? '운전자가 출발을 준비하고 있어요' : navEnded ? '운전자가 내비 안내를 종료했어요' : '차가 오고 있어요'}</p>
+            <p className="eta-min">{arrived ? meet.name : navEnded ? '도착 시간을 알 수 없어요' : etaSec != null ? `약 ${Math.ceil(etaSec / 60)}분` : '도착 시간 확인 중'}</p>
+            {navEnded && <p className="sub nav-ended-sub">차 위치는 지도에서 실시간으로 볼 수 있어요</p>}
           </div>
           {!arrived && etaSec != null && <div><p className="sub">도착 예정</p><p className="eta-at">{hhmm(now + etaSec * 1000)}</p></div>}
         </div>
@@ -163,6 +177,16 @@ export default function VisitPage() {
           {readiness === 'READY' || readiness === 'HEADING_OUT' || readiness === 'AT_LOBBY' ? READINESS_BUTTON[readiness] : '준비됐어요'}
         </button>
       </section>
+      {showEnded && <div className="dialog-backdrop" role="presentation">
+        <div className="dialog" role="alertdialog" aria-labelledby="nav-ended-title" aria-describedby="nav-ended-body">
+          <p id="nav-ended-title" className="dialog-title">운전자가 안내를 종료했어요</p>
+          <p id="nav-ended-body" className="dialog-body">그래서 정확한 도착 시간은 알 수 없어요. 차 위치는 지도에서 계속 실시간으로 보여 드려요.{proposalClosed && ` 보낸 장소 변경 제안도 취소됐어요. ${meet.name}에서 만나요.`}</p>
+          <div className="dialog-actions">
+            <button className="btn-outline-accent" onClick={() => closeEnded(false)}>확인</button>
+            <button className="btn-primary" disabled={!car} onClick={() => closeEnded(true)}>차 위치 보기</button>
+          </div>
+        </div>
+      </div>}
     </main>
   );
 }

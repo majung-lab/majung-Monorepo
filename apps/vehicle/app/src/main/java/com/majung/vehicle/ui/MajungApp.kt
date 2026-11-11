@@ -109,6 +109,10 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
         }
     }
     LaunchedEffect(incoming?.id) { incoming?.let { proposalId = it.id } }
+    // 안내를 꺼서 닫힌 제안은 결과 화면 없이 바로 닫는다
+    LaunchedEffect(shownProposal?.cancelReason) {
+        if (shownProposal?.cancelReason == "NAV_ENDED") { dismissedProposal = shownProposal.id; proposalId = null }
+    }
     // C04·C06에서 그 시설·모드의 날씨와 추천 순서를 받고, 머무는 동안 10분마다 갱신한다
     val wantsWeather = screen == Screen.PLACE || screen == Screen.MOVING || screen == Screen.ARRIVAL
     LaunchedEffect(wantsWeather, facility?.id, selectedMode) {
@@ -161,9 +165,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onArrived = { if (visit?.phase == "ARRIVED") screen = Screen.ARRIVAL else model.phase("ARRIVED") { screen = Screen.ARRIVAL } },
                 onChangePlace = if (driving || mapPoints.size < 2) null else ({ screen = if (selectedMode == VisitMode.PICKUP) Screen.MOVE_PIN else Screen.PLACE }),
                 onCancelVisit = if (driving) null else ({ model.phase("CANCELLED") { finish() } }),
-                navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; else -> "내비 연결 전" },
+                navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; "ended" -> NaviStatus.ENDED.label; else -> "내비 연결 전" },
                 onShowNavi = model::showNavi,
-                onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || (model.naviStatus == null && snapshot?.vehicle?.navResult == "failed")) model::retryNavi else null,
+                onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || model.naviStatus == NaviStatus.ENDED || (model.naviStatus == null && snapshot?.vehicle?.navResult in listOf("failed", "ended"))) model::retryNavi else null,
                 banner = ownResult?.let { proposal -> {
                     val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; "CANCELLED" -> ProposalResult.CANCELLED_BY_ME; else -> ProposalResult.TIMEOUT }
                     ResultBanner(result, facility?.accessPoints?.firstOrNull { it.id == proposal.fromAccessPointId }?.name.orEmpty(),

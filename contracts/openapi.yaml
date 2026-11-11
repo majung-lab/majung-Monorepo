@@ -374,6 +374,7 @@ components:
         baseVersion: *version
         status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, EXPIRED, CANCELLED] }
         reason: { type: string }
+        cancelReason: { type: string, enum: [NAV_ENDED], description: CANCELLED인 이유. NAV_ENDED는 운전자가 내비 안내를 꺼서 기다리던 제안이 닫힘 }
         createdAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
     PlaceRating:
@@ -395,12 +396,16 @@ components:
           items: { $ref: '#/components/schemas/MeetingProposal' }
         vehicle:
           type: [object, 'null']
-          required: [lat, lng, etaSec, navResult, recordedAt]
+          required: [lat, lng, etaSec, navResult, navEndedAt, recordedAt]
           properties:
             lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
             lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
-            etaSec: { type: [integer, 'null'], minimum: 0 }
-            navResult: { type: [string, 'null'], enum: [set, failed, null] }
+            etaSec: { type: [integer, 'null'], minimum: 0, description: navResult가 ended이면 항상 null }
+            navResult:
+              type: [string, 'null']
+              enum: [set, failed, ended, null]
+              description: ended는 운전자가 내비 안내를 끈 상태. 남은 시간은 모르고 차 위치만 계속 갱신된다
+            navEndedAt: { type: [string, 'null'], format: date-time, description: 안내를 끈 시각. 다시 안내하거나 만날 곳이 바뀌면 null }
             recordedAt: { type: string, format: date-time }
         passengerLocation:
           type: [object, 'null']
@@ -510,7 +515,7 @@ components:
             lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
             lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
             etaSec: { type: [integer, 'null'], minimum: 0, maximum: 86400 }
-            navResult: { type: string, enum: [set, failed] }
+            navResult: { type: string, enum: [set, failed, ended], description: ended는 운전자가 내비 안내를 끔 (보낸 etaSec는 버린다) }
     CreateProposalRequest:
       type: object
       additionalProperties: false
