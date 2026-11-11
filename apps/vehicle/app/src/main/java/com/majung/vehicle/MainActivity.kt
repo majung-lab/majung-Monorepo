@@ -23,6 +23,7 @@ import com.majung.vehicle.ui.MajungApp
 import com.majung.vehicle.ui.theme.ScaleToPanel
 
 private const val VOICE_TEST = "com.majung.vehicle.VOICE_TEST"
+private const val NAVI_TEST = "com.majung.vehicle.NAVI_TEST"
 
 class MainActivity : ComponentActivity() {
     private lateinit var uxRestriction: UxRestrictionWatcher
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
         uxRestriction = UxRestrictionWatcher(this)
         model = ViewModelProvider(this)[VehicleViewModel::class.java]
         requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.RECORD_AUDIO))
-        if (BuildConfig.DEBUG) registerReceiver(voiceTest, IntentFilter(VOICE_TEST), RECEIVER_EXPORTED)
+        if (BuildConfig.DEBUG) registerReceiver(voiceTest, IntentFilter(VOICE_TEST).apply { addAction(NAVI_TEST) }, RECEIVER_EXPORTED)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 ScaleToPanel { MajungApp(uxRestriction, model) }
@@ -46,8 +47,13 @@ class MainActivity : ComponentActivity() {
 
     // ponytail: 에뮬레이터 마이크 대신 adb로 들은 말을 넣는다 (디버그 빌드만)
     // adb shell am broadcast -a com.majung.vehicle.VOICE_TEST --es text 바꿔
+    // 에뮬레이터 내비는 경로를 따라 움직이지 않아 도착·경로 종료 이벤트도 adb로 넣는다
+    // adb shell am broadcast -a com.majung.vehicle.NAVI_TEST --es event arrived --es name "A구역 정문 승하차장"  (event: arrived | ended)
     private val voiceTest = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) { intent.getStringExtra("text")?.let(model::injectVoice) }
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == NAVI_TEST) model.injectNavi(intent.getStringExtra("event").orEmpty(), intent.getStringExtra("name").orEmpty())
+            else intent.getStringExtra("text")?.let(model::injectVoice)
+        }
     }
 
     private fun startLocation() {

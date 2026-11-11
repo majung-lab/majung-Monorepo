@@ -202,6 +202,9 @@ class VehicleViewModel @JvmOverloads constructor(
     /** 디버그 빌드에서 에뮬레이터 대신 들은 말을 넣는다 */
     fun injectVoice(text: String) = voice?.inject(text)
 
+    /** 디버그 빌드에서 에뮬레이터 내비 대신 도착(arrived)·경로 종료(ended) 이벤트를 넣는다 */
+    fun injectNavi(event: String, name: String) = when (event) { "arrived" -> onNaviArrived(name); "ended" -> onNaviEnded(); else -> Unit }
+
     /**
      * 내비의 남은 시간. 내비가 마중 장소가 아닌 곳(300m 밖)을 안내 중이면 쓰지 않는다.
      * 1분 넘게 바뀌었을 때만 바로 보내고, 나머지는 다음 위치 전송에 실린다
