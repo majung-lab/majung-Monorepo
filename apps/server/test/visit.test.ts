@@ -284,3 +284,31 @@ test('운전자가 내비 안내를 끄면 남은 시간은 지우고 차 위치
     assert.equal(accepted.vehicle.navResult,null); assert.equal(accepted.vehicle.navEndedAt,null);
   }finally{await app.close();db.close();}
 });
+
+test('이동 중 처음 받은 도착 예정 시각을 남겨 두고, 만날 곳이 바뀌면 새로 정한다', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'plan-create'}})).json();
+    const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+    const patch=async(requestId:string,version:number,payload:object)=>(await app.inject({method:'PATCH',url:driver,payload:{requestId,version,...payload}})).json();
+    const near=(at:string,sec:number)=>assert.ok(Math.abs(Date.parse(at)-(Date.now()+sec*1000))<5000,`${at} ≈ now+${sec}s`);
+    // 출발 전에 실린 남은 시간은 약속으로 삼지 않는다
+    let s=await patch('plan-prep',1,{vehicle:{lat:37.54,lng:127.22,etaSec:300}});
+    assert.equal(s.vehicle.plannedArrivalAt,null);
+    s=await patch('plan-move',s.visit.version,{phase:'MOVING'});
+    s=await patch('plan-first',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:600,navResult:'set'}});
+    const planned=s.vehicle.plannedArrivalAt; near(planned,600);
+    // 길이 막혀 남은 시간이 늘어도, 안내를 껐다 켜도 처음 약속은 그대로
+    s=await patch('plan-slow',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:1500}});
+    s=await patch('plan-ended',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:null,navResult:'ended'}});
+    s=await patch('plan-again',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:1400,navResult:'set'}});
+    assert.equal(s.vehicle.plannedArrivalAt,planned);
+    assert.equal((await app.inject({method:'GET',url:passenger})).json().vehicle.plannedArrivalAt,planned);
+    // 만날 곳이 바뀌면 지우고, 다음 남은 시간으로 다시 정한다
+    const proposed=(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId:'plan-propose',version:s.visit.version,accessPointId:'1'}})).json();
+    s=(await app.inject({method:'POST',url:driver+`/proposals/${proposed.proposals[0].id}/respond`,payload:{requestId:'plan-accept',version:proposed.visit.version,accept:true}})).json();
+    assert.equal(s.vehicle.plannedArrivalAt,null);
+    s=await patch('plan-new',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:200,navResult:'set'}});
+    near(s.vehicle.plannedArrivalAt,200);
+  }finally{await app.close();db.close();}
+});

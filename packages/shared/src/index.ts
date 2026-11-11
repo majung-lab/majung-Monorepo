@@ -108,6 +108,8 @@ export interface VehicleStatus {
   navResult: 'set' | 'failed' | 'ended' | null;
   /** 안내를 끈 시각. 다시 안내하거나 만날 곳이 바뀌면 null */
   navEndedAt: string | null;
+  /** 이동 중 처음 받은 도착 예정 시각. 지금 예상이 이보다 늦으면 늦어짐을 알린다. 만날 곳이 바뀌면 다시 정한다 */
+  plannedArrivalAt: string | null;
   recordedAt: string;
 }
 export interface PassengerLocation { lat: number; lng: number; recordedAt: string }

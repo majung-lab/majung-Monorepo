@@ -18,6 +18,8 @@ const STEPS = ['출발 준비', '이동 중', '도착'];
 const NEXT_READINESS = { READY: 'HEADING_OUT', HEADING_OUT: 'AT_LOBBY' } as const;
 const READINESS_BUTTON = { READY: '지금 나갈게요', HEADING_OUT: '로비에 도착했어요', AT_LOBBY: '로비에 있어요 · 전달됨' } as const;
 const CONDITIONS: [keyof MoveConditions, string][] = [['stroller', '유모차'], ['luggage', '짐 많음'], ['avoidStairs', '계단 피하기'], ['indoorOnly', '실내로만']];
+// 처음 예상보다 이만큼(분) 늦어지면 동승자에게 알린다
+const LATE_MIN = 5;
 const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
 export default function VisitPage() {
@@ -46,6 +48,10 @@ export default function VisitPage() {
   // 운전자가 내비 안내를 끄면 남은 시간은 모른다. 차 위치는 계속 온다
   const navEnded = vehicle?.navResult === 'ended' && visit.phase === 'MOVING';
   const etaSec = !navEnded && !stale && vehicle?.etaSec != null ? Math.max(0, vehicle.etaSec - (now - Date.parse(vehicle.recordedAt)) / 1000) : null;
+  // 처음 안내한 도착 시각보다 5분 넘게 늦어지면 알린다. 남은 시간을 모를 때(안내 종료·오래된 위치)는 말하지 않는다
+  const plannedAt = vehicle?.plannedArrivalAt ? Date.parse(vehicle.plannedArrivalAt) : null;
+  const delayMin = visit.phase === 'MOVING' && etaSec != null && plannedAt != null ? Math.round((now + etaSec * 1000 - plannedAt) / 60_000) : 0;
+  const late = delayMin >= LATE_MIN;
   // 안내 종료 알림은 한 번만. 링크를 다시 열어도 확인한 알림은 다시 띄우지 않는다
   const endedKey = `majung:seen-nav-ended:${token}`;
   const [endedSeen, setEndedSeen] = useState(() => { try { return localStorage.getItem(endedKey); } catch { return null; } });
@@ -124,6 +130,7 @@ export default function VisitPage() {
             <p className="sub">{arrived ? '운전자가 도착을 확인했어요' : visit.phase === 'PREPARING' ? '운전자가 출발을 준비하고 있어요' : navEnded ? '운전자가 내비 안내를 종료했어요' : '차가 오고 있어요'}</p>
             <p className="eta-min">{arrived ? meet.name : navEnded ? '도착 시간을 알 수 없어요' : etaSec != null ? `약 ${Math.ceil(etaSec / 60)}분` : '도착 시간 확인 중'}</p>
             {navEnded && <p className="sub nav-ended-sub">차 위치는 지도에서 실시간으로 볼 수 있어요</p>}
+            {late && plannedAt != null && <p className="delay-note" role="status">조금 늦어져요 · 처음 안내({hhmm(plannedAt)})보다 {delayMin}분 늦어요</p>}
           </div>
           {!arrived && etaSec != null && <div><p className="sub">도착 예정</p><p className="eta-at">{hhmm(now + etaSec * 1000)}</p></div>}
         </div>
