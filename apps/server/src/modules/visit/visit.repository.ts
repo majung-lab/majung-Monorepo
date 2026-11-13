@@ -94,7 +94,7 @@ export function createVisitRepository(db: Db) {
   }
   function snapshot(token:string):VisitSnapshot {
     const a=actor(token); const v=row(a.visit_id);
-    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null;planned_arrival_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
+    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null;planned_arrival_at:string|null;nav_resumed_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
     const meetId=Number(toVisit(v).confirmedAccessPointId);
     const spot=extra?.passenger_wait_spot_id!=null?visitFacility(v).waitSpots.find(w=>w.id===String(extra.passenger_wait_spot_id)):undefined;
     const link=spot?routeLinks(Number(spot.id)).get(String(meetId)):undefined;
@@ -107,7 +107,7 @@ export function createVisitRepository(db: Db) {
         ...(p.reason_text?{reason:p.reason_text}:{}),...(p.status==='expired'&&p.responder_id!==null&&p.responder_id!==p.proposer_id?{cancelReason:'NAV_ENDED' as const}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
-      vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,plannedArrivalAt:extra?.planned_arrival_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
+      vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,plannedArrivalAt:extra?.planned_arrival_at??null,navResumedAt:extra?.nav_ended_at?null:extra?.nav_resumed_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
       passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id)};
   }
   function conditions(visitId:string):MoveConditions {
@@ -185,7 +185,7 @@ export function createVisitRepository(db: Db) {
         if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
         // 장소가 바뀌면 이전 장소의 내비 결과는 더 이상 맞지 않는다
         run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,candidate.id,v.id,v.version);
-        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL WHERE visit_id=?',v.id);
+        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL,nav_resumed_at=NULL WHERE visit_id=?',v.id);
       }
       if(input.phase!==undefined) {
         const current=phaseFromDb[v.status];
@@ -213,11 +213,12 @@ export function createVisitRepository(db: Db) {
         // 끈 동안에는 남은 시간을 믿을 수 없으니 버리고, 다시 안내(set)하거나 실패를 알리면 지운다
         const ended=pos.navResult==='ended';
         if(ended) {
-          run('UPDATE api_visit_state SET nav_ended_at=? WHERE visit_id=?',iso(),v.id);
+          run('UPDATE api_visit_state SET nav_ended_at=?,nav_resumed_at=NULL WHERE visit_id=?',iso(),v.id);
           // 안내를 끄면 기다리던 장소 변경 제안도 닫는다. 운전자가 닫은 것으로 남겨 동승자 제안은 NAV_ENDED로 보인다
           run("UPDATE proposal SET status='expired',responder_id=?,responded_at=? WHERE visit_id=? AND status='pending'",a.id,iso(),v.id);
         }
-        else if(pos.navResult) run('UPDATE api_visit_state SET nav_ended_at=NULL WHERE visit_id=?',v.id);
+        // 끈 뒤 다시 안내(set)하면 그 시각을 남겨 동승자에게 한 번 알린다
+        else if(pos.navResult) run("UPDATE api_visit_state SET nav_resumed_at=CASE WHEN ?='set' AND nav_ended_at IS NOT NULL THEN ? ELSE nav_resumed_at END,nav_ended_at=NULL WHERE visit_id=?",pos.navResult,iso(),v.id);
         const stillEnded=ended||(!pos.navResult&&!!one<{nav_ended_at:string|null}>('SELECT nav_ended_at FROM api_visit_state WHERE visit_id=?',v.id)?.nav_ended_at);
         const eta=stillEnded?null:pos.etaSec;
         const nav=ended?null:pos.navResult??null;
@@ -258,7 +259,7 @@ export function createVisitRepository(db: Db) {
       run('UPDATE proposal SET status=?,responder_id=?,responded_via=\'touch\',responded_at=? WHERE id=?',cancel?'expired':accept?'accepted':'rejected',a.id,iso(),p.id);
       if(accept) {
         run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
-        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL WHERE visit_id=?',v.id);
+        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL,nav_resumed_at=NULL WHERE visit_id=?',v.id);
       }
     });
   }
