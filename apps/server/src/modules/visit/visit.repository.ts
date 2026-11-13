@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { AccessPoint, CoverageQuestion, CoverageVoteRequest, CreateProposalRequest, MoveConditions, PassengerWaitSpot, Weather, WaitSpotOption, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
+import type { AccessPoint, CoverageQuestion, DriverMessage, CoverageVoteRequest, CreateProposalRequest, MoveConditions, PassengerWaitSpot, Weather, WaitSpotOption, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
 import type { Db } from '../../db/index.ts';
 import { HttpError } from '../../common/errors.ts';
 import { rankAccessPoints, type RouteLink } from '../weather/weather.ts';
@@ -99,7 +99,7 @@ export function createVisitRepository(db: Db) {
   }
   function snapshot(token:string):VisitSnapshot {
     const a=actor(token); const v=row(a.visit_id);
-    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null;planned_arrival_at:string|null;nav_resumed_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
+    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null;planned_arrival_at:string|null;nav_resumed_at:string|null;driver_message:DriverMessage['kind']|null;driver_message_minutes:number|null;driver_message_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
     const meetId=Number(toVisit(v).confirmedAccessPointId);
     const spot=extra?.passenger_wait_spot_id!=null?visitFacility(v).waitSpots.find(w=>w.id===String(extra.passenger_wait_spot_id)):undefined;
     const link=spot?routeLinks(Number(spot.id)).get(String(meetId)):undefined;
@@ -113,7 +113,7 @@ export function createVisitRepository(db: Db) {
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
       vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,plannedArrivalAt:extra?.planned_arrival_at??null,navResumedAt:extra?.nav_ended_at?null:extra?.nav_resumed_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
-      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id),coverageQuestion:a.role==='passenger'?coverageQuestion(v,extra?.passenger_wait_spot_id??null):null};
+      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id),driverMessage:extra?.driver_message&&extra.driver_message_at?{kind:extra.driver_message,minutes:extra.driver_message_minutes,sentAt:extra.driver_message_at}:null,coverageQuestion:a.role==='passenger'?coverageQuestion(v,extra?.passenger_wait_spot_id??null):null};
   }
   /** 완료된 만남 방문에서 동승자가 걸어온 동선. 고른 대기 지점이 있으면 그 동선, 없으면 만날 곳의 기본 동선 */
   function walkedConnection(v:VisitRow,waitSpotId:number|null) {
@@ -198,7 +198,7 @@ export function createVisitRepository(db: Db) {
   function update(token:string,input:UpdateVisitRequest):VisitSnapshot {
     return mutate(token,'update',input,(a,v)=>{
       requireActive(v);
-      if(input.phase!==undefined||input.vehicle!==undefined||input.parkingFloor!==undefined||input.accessPointId!==undefined) requireRole(a,'driver');
+      if(input.phase!==undefined||input.vehicle!==undefined||input.parkingFloor!==undefined||input.accessPointId!==undefined||input.driverMessage!==undefined) requireRole(a,'driver');
       if(input.passengerReadiness!==undefined||input.passengerLocation!==undefined||input.passengerWaitSpotId!==undefined||input.passengerConditions!==undefined) requireRole(a,'passenger');
       if(input.accessPointId!==undefined) {
         if(v.mode==='pickup') return error(403,'MUTUAL_CONSENT_REQUIRED','픽업 장소는 상대방이 제안을 수락해야 바뀌어요');
@@ -226,6 +226,8 @@ export function createVisitRepository(db: Db) {
         run('UPDATE api_visit_state SET passenger_wait_spot_id=? WHERE visit_id=?',input.passengerWaitSpotId===null?null:Number(input.passengerWaitSpotId),v.id);
       }
       if(input.passengerConditions!==undefined) run('UPDATE participant SET conditions_json=? WHERE id=?',JSON.stringify({...NO_CONDITIONS,...input.passengerConditions}),a.id);
+      // 운전자가 말로 보낸 짧은 알림. 마지막 하나만 남긴다
+      if(input.driverMessage) run('UPDATE api_visit_state SET driver_message=?,driver_message_minutes=?,driver_message_at=? WHERE visit_id=?',input.driverMessage.kind,input.driverMessage.kind==='LATE'?input.driverMessage.minutes??null:null,iso(),v.id);
       if(input.parkingFloor!==undefined) run('UPDATE api_visit_state SET parking_floor=? WHERE visit_id=?',input.parkingFloor,v.id);
       if(input.vehicle) {
         const pos=input.vehicle;

@@ -379,3 +379,21 @@ test('탑승 뒤 동승자가 오는 길의 지붕 여부에 답하고, 표가 �
     await finish(5,null);
   }finally{await app.close();db.close();}
 });
+
+test('운전자가 말로 보낸 짧은 알림을 동승자에게 보여 준다. 마지막 하나만 남는다', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'msg-create'}})).json();
+    const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+    let s=(await app.inject({method:'GET',url:passenger})).json();
+    assert.equal(s.driverMessage,null);
+    const send=async(url:string,requestId:string,driverMessage:object)=>app.inject({method:'PATCH',url,payload:{requestId,version:s.visit.version,driverMessage}});
+    assert.equal((await send(passenger,'msg-passenger',{kind:'ALMOST'})).statusCode,403);
+    assert.equal((await send(driver,'msg-bad',{kind:'HELLO'})).statusCode,400);
+    s=(await send(driver,'msg-late',{kind:'LATE',minutes:10})).json();
+    assert.equal(s.driverMessage.kind,'LATE'); assert.equal(s.driverMessage.minutes,10); assert.ok(s.driverMessage.sentAt);
+    s=(await send(driver,'msg-almost',{kind:'ALMOST',minutes:5})).json();
+    const seen=(await app.inject({method:'GET',url:passenger})).json().driverMessage;
+    assert.equal(seen.kind,'ALMOST'); assert.equal(seen.minutes,null); // 분은 LATE에만
+  }finally{await app.close();db.close();}
+});

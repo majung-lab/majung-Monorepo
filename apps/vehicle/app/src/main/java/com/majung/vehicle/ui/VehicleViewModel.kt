@@ -16,6 +16,7 @@ import com.majung.vehicle.pleos.navi.NaviClient
 import com.majung.vehicle.pleos.navi.NaviResult
 import com.majung.vehicle.pleos.navi.PleosNaviClient
 import com.majung.vehicle.pleos.voice.VoiceGuide
+import com.majung.vehicle.pleos.voice.parseDriverMessage
 import java.util.UUID
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -159,7 +160,7 @@ class VehicleViewModel @JvmOverloads constructor(
             notice.alert("proposal:${p.id}", "가족이 장소를 바꾸자고 해요", to)
             if (p.id != askedProposal) { askedProposal = p.id; askByVoice(p.id, to) }
         }
-        if (pending == null) voice?.cancel()   // 화면에서 먼저 답했거나 가족이 취소했다
+        if (pending == null) voice?.cancel(VoiceGuide.PROPOSAL)   // 화면에서 먼저 답했거나 가족이 취소했다
         if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", point)
         if (visit.passengerReadiness == "AT_LOBBY") notice.alert("lobby:${visit.id}", "가족이 로비에 도착했어요", point)
     }
@@ -196,6 +197,27 @@ class VehicleViewModel @JvmOverloads constructor(
                 false -> { respond(id, false); v.say("기존 장소로 계속 안내할게요.") }
                 null -> v.say("잘 알아듣지 못했어요. 차를 세운 뒤 화면에서 답해 주세요.")
             }
+        }
+    }
+
+    /** 음성 엔진이 있어 말로 알리기를 쓸 수 있는지 */
+    val canSpeak get() = voice != null
+    /** 지금 묻고 듣는 까닭 (VoiceGuide.PROPOSAL·DRIVER_MESSAGE). voiceState가 바뀔 때 함께 바뀐다 */
+    val voicePurpose get() = voice?.purpose
+
+    /**
+     * 운전자가 말로 가족에게 짧은 알림을 보낸다: "10분 늦어" · "거의 다 왔어" · "안에서 기다려".
+     * 알아들은 내용을 서버에 보내고, 무엇을 보냈는지 소리로 확인해 준다
+     */
+    fun speakMessage() {
+        val v = voice ?: return
+        if (driverToken == null || voiceState is VoiceGuide.State.Speaking || voiceState is VoiceGuide.State.Listening) return
+        v.listen("가족에게 뭐라고 전할까요? 십 분 늦어, 거의 다 왔어, 안에서 기다려 처럼 말해 주세요.", VoiceGuide.DRIVER_MESSAGE) { heard ->
+            val message = parseDriverMessage(heard)
+            if (message == null) v.say("잘 알아듣지 못했어요. 다시 말로 알리기를 눌러 주세요.")
+            else mutate("PATCH", "", {
+                putJsonObject("driverMessage") { put("kind", message.kind); message.minutes?.let { put("minutes", it) } }
+            }) { v.say("가족에게 ${message.words} 전했어요.") }
         }
     }
 

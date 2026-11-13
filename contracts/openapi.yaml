@@ -403,7 +403,7 @@ components:
         comment: { type: [string, 'null'] }
     VisitSnapshot:
       type: object
-      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, passengerConditions, rating, coverageQuestion]
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, passengerConditions, rating, coverageQuestion, driverMessage]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         role: *role
@@ -449,6 +449,14 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
             - { type: 'null' }
+        driverMessage:
+          description: Latest short message the driver spoke in the car. LATE = about N minutes late (minutes null = a little), ALMOST = almost there, WAIT_INSIDE = please wait inside.
+          type: [object, 'null']
+          required: [kind, minutes, sentAt]
+          properties:
+            kind: &driverMessageKind { type: string, enum: [LATE, ALMOST, WAIT_INSIDE] }
+            minutes: { type: [integer, 'null'] }
+            sentAt: { type: string, format: date-time }
         coverageQuestion:
           description: Passenger only, on a COMPLETED meeting visit with a known route. answer null = not answered yet.
           type: [object, 'null']
@@ -543,6 +551,14 @@ components:
             lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
             etaSec: { type: [integer, 'null'], minimum: 0, maximum: 86400 }
             navResult: { type: string, enum: [set, failed, ended], description: ended는 운전자가 내비 안내를 끔 (보낸 etaSec는 버린다) }
+        driverMessage:
+          type: object
+          additionalProperties: false
+          required: [kind]
+          description: Driver-only. Short message spoken in the car. minutes applies to LATE only; only the latest is kept.
+          properties:
+            kind: *driverMessageKind
+            minutes: { type: integer, minimum: 1, maximum: 120 }
     CreateProposalRequest:
       type: object
       additionalProperties: false
