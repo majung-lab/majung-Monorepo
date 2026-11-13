@@ -67,7 +67,36 @@
 | [contracts/openapi.yaml](contracts/openapi.yaml) | API 계약 (OpenAPI) |
 | [docs/api](docs/api/README.md) | API 문서 (요청·응답 예시, 에러 코드, curl 따라 하기) |
 
-## 실행
+## 개발 환경 · Pleos Connect 에뮬레이터
+
+| 항목 | 값 |
+|---|---|
+| 에뮬레이터 | **Pleos Connect v2.1.0** (system image `pleos_car_emulator`, Android 14 / API 34, android-automotive, arm64-v8a) |
+| 화면 규격 | **2560 × 1440 px**, 160 dpi (AVD `hw.lcd.width/height/density`), 가로 화면. 앱은 큰 패널(높이 960dp 이상)에서 전체를 같은 비율로 키웁니다([PanelScale.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/theme/PanelScale.kt)) |
+| AVD 설정 | RAM 8GB, GPU `host`, Cold boot |
+| 개발 PC | macOS 26 (Apple Silicon, arm64) |
+| 차량 앱 | `com.majung.vehicle` 0.1.0 (versionCode 1), minSdk 29 · targetSdk 35 · compileSdk 35, Kotlin · Jetpack Compose, Gradle 8.13, JDK 17 |
+| 서버 · 웹 | Node 22.13 이상(검증 24.6.0), npm |
+
+## APK
+
+| 구분 | 위치 |
+|---|---|
+| GitHub Release | [majung-Monorepo Releases](https://github.com/majung-lab/majung-Monorepo/releases/latest) → `majung-vehicle-0.1.0-debug.apk` |
+| 직접 빌드 | `cd apps/vehicle && ./gradlew assembleDebug` → `apps/vehicle/app/build/outputs/apk/debug/app-debug.apk` |
+
+APK는 에뮬레이터에서 서버를 `http://10.0.2.2:4000`, 가족 웹을 `http://10.0.2.2:5173`으로 찾도록 빌드되어 있습니다. 따라서 APK를 설치하기 전에 아래 [1. 서버와 가족 웹](#1-서버와-가족-웹)을 같은 PC에서 먼저 켜 둡니다.
+
+## 테스트 환경 및 필요한 설정
+
+- **에뮬레이터:** 위의 Pleos Connect v2.1.0 AVD(2560×1440). 내장 내비 앱을 한 번 열어 둔 뒤 테스트합니다(그래야 첫 경로 요청이 성공합니다).
+- **설치 사용자:** 운전자 사용자 `user 10`에 설치합니다(`adb install --user 10`).
+- **권한:** 알림(`POST_NOTIFICATIONS`), 다른 앱 위에 표시(`SYSTEM_ALERT_WINDOW`, 내비 위 배너), 위치, 마이크(`RECORD_AUDIO`, 음성 응답). Pleos 권한(`NAVI_ROUTE`, `NAVI_ROUTE_SEARCH`, `TTS_SERVICE`, `STT_SERVICE`)은 매니페스트에 선언되어 있습니다.
+- **서버:** 같은 PC에서 `npm run dev:server`(4000)와 `npm run dev:web`(5173)을 켭니다. API 키가 없어도 모든 흐름을 테스트할 수 있습니다. 날씨는 `WEATHER_DEMO=rain|clear`로 고정할 수 있습니다(아래 환경 변수 표).
+- **가족 화면:** 기본 빌드의 QR 링크는 `http://10.0.2.2:5173/...`이므로 PC 브라우저에서는 주소의 `10.0.2.2`를 `localhost`로 바꿔 엽니다. 실제 휴대폰으로 찍으려면 PC의 LAN IP로 다시 빌드합니다(아래 참고).
+- **테스트 데이터:** 서버 DB가 비어 있으면 예시 시설(승하차 지점·대기 지점·동선)을 자동으로 넣습니다.
+
+## 실행 방법
 
 요구 환경: Node 22.13 이상(검증 24.6.0), npm, JDK 17, Android SDK 35.
 
@@ -104,6 +133,7 @@ cd apps/vehicle
 adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk
 adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.POST_NOTIFICATIONS
 adb -s emulator-5554 shell appops set --user 10 com.majung.vehicle SYSTEM_ALERT_WINDOW allow   # 내비 위 배너
+adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.RECORD_AUDIO   # 음성 응답
 ```
 
 에뮬레이터는 서버를 `http://10.0.2.2:4000`으로 찾습니다. 실제 휴대폰으로 QR을 찍으려면 PC의 LAN IP로 빌드합니다(`-PwebUrl=http://<LAN IP>:5173 -PserverUrl=http://<LAN IP>:4000`). 휴대폰에서 내 위치까지 공유하려면 HTTPS 웹(`npm run dev:web:https`, 5174)을 씁니다.
