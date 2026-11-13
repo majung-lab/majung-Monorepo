@@ -52,7 +52,7 @@ class VehicleViewModel @JvmOverloads constructor(
     private var placeWeatherKey: String? = null
     /** 가족 제안을 말로 묻고 듣는 상태 (화면 표시용). 음성 엔진이 없으면 계속 Idle */
     var voiceState by mutableStateOf<VoiceGuide.State>(VoiceGuide.State.Idle); private set
-    private val voice: VoiceGuide? = runCatching { VoiceGuide(application).also { it.onState = { s -> voiceState = s } } }
+    private val voice: VoiceGuide? = runCatching { VoiceGuide(application).also { it.onState = { s -> voiceState = s; if (s == VoiceGuide.State.Idle) snapshot?.let(::sayReadiness) } } }
         .onFailure { android.util.Log.w("VoiceGuide", "음성 엔진 없음", it) }.getOrNull()
     private var askedProposal: String? = null
 
@@ -162,6 +162,31 @@ class VehicleViewModel @JvmOverloads constructor(
         if (pending == null) voice?.cancel()   // 화면에서 먼저 답했거나 가족이 취소했다
         if (visit.passengerReadiness == "HEADING_OUT") notice.alert("out:${visit.id}", "가족이 나오는 중이에요", point)
         if (visit.passengerReadiness == "AT_LOBBY") notice.alert("lobby:${visit.id}", "가족이 로비에 도착했어요", point)
+        sayReadiness(value)
+    }
+
+    /**
+     * 가족이 준비·나오는 중·도착을 누르면 한 번 소리로 알린다. 운전 중에 화면을 보지 않아도 되게 한다.
+     * 제안을 묻고 듣는 중이면 끼어들지 않고 다음 상태 갱신 때 말한다. 말한 상태는 저장해 앱을 다시 켜도 되풀이하지 않는다
+     */
+    private fun sayReadiness(value: VisitSnapshot) {
+        val v = voice ?: return
+        val visit = value.visit
+        if (visit.mode != "PICKUP" || visit.phase !in listOf("PREPARING", "MOVING", "ARRIVED")) return
+        // passengerWaitSpot은 가족이 지금 있는 곳(웹의 "지금 어디 계세요?")이다. 나오는 출발점으로 말한다
+        val spot = value.passengerWaitSpot
+        val text = when (visit.passengerReadiness) {
+            "READY" -> "가족이 준비됐어요."
+            "HEADING_OUT" -> if (spot == null) "가족이 지금 나오고 있어요."
+                else "가족이 ${spot.name}에서 나오고 있어요." + (spot.walkMinutes?.let { " 만날 곳까지 걸어서 ${it}분쯤 걸려요." } ?: "")
+            "AT_LOBBY" -> "가족이 로비에 도착해서 기다리고 있어요."
+            else -> return
+        }
+        val key = "${visit.id}:${visit.passengerReadiness}"
+        if (prefs.getString("spokenReadiness", null) == key) return
+        if (voiceState != VoiceGuide.State.Idle && voiceState !is VoiceGuide.State.Heard) return
+        prefs.edit().putString("spokenReadiness", key).apply()
+        v.say(text)
     }
 
     /**
