@@ -23,6 +23,41 @@ fun parseAnswer(heard: String): Boolean? {
     return null
 }
 
+/** 운전자가 가족에게 말로 보내는 짧은 알림 (서버 driverMessage.kind) */
+data class DriverMessage(val kind: String, val minutes: Int? = null) {
+    /** 확인용으로 읽어 줄 말 */
+    val words get() = when (kind) { "LATE" -> minutes?.let { "${it}분쯤 늦는다고" } ?: "조금 늦는다고"; "ALMOST" -> "거의 다 왔다고"; else -> "안에서 기다려 달라고" }
+}
+
+private val KOREAN_NUMBERS = mapOf("한" to 1, "두" to 2, "세" to 3, "네" to 4, "다섯" to 5, "여섯" to 6, "일곱" to 7, "여덟" to 8, "아홉" to 9, "일" to 1, "이" to 2, "삼" to 3, "사" to 4, "오" to 5, "육" to 6, "칠" to 7, "팔" to 8, "구" to 9)
+
+/** "10분", "십오 분", "이십분", "오 분"처럼 들린 분을 숫자로. 없으면 null */
+fun parseMinutes(heard: String): Int? {
+    val s = heard.replace(" ", "")
+    Regex("(\\d{1,3})분").find(s)?.let { return it.groupValues[1].toInt().takeIf { n -> n in 1..120 } }
+    val m = Regex("([가-힣]{1,4})분").find(s)?.groupValues?.get(1) ?: return null
+    // 끝에서부터 가장 긴 숫자 말을 찾는다 ("이십오" → 25, "십" → 10, "다섯" → 5)
+    for (start in m.indices) {
+        val w = m.substring(start)
+        val n = when {
+            w.contains("십") -> { val (tens, ones) = w.split("십", limit = 2); (if (tens.isEmpty()) 1 else KOREAN_NUMBERS[tens] ?: continue) * 10 + (if (ones.isEmpty()) 0 else KOREAN_NUMBERS[ones] ?: continue) }
+            else -> KOREAN_NUMBERS[w] ?: continue
+        }
+        return n.takeIf { it in 1..120 }
+    }
+    return null
+}
+
+/** 운전자가 한 말을 알림으로. 알아듣지 못하면 null */
+fun parseDriverMessage(heard: String): DriverMessage? {
+    val s = heard.replace(" ", "")
+    if (s.isEmpty()) return null
+    if ("늦" in s) return DriverMessage("LATE", parseMinutes(s))
+    if (listOf("안에서", "실내", "기다려", "나오지마").any { it in s }) return DriverMessage("WAIT_INSIDE")
+    if (listOf("거의", "다왔", "곧도착", "금방", "곧가").any { it in s }) return DriverMessage("ALMOST")
+    return null
+}
+
 /**
  * Pleos TextToSpeech·SpeechToText로 묻고 한 번 듣는다. 기기 안 엔진(ON_DEVICE)만 써서 앱 등록·네트워크가 없어도 된다.
  * 콜백은 모두 메인 스레드로 넘긴다.
@@ -38,7 +73,10 @@ class VoiceGuide(context: Context) {
     private val main = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context.applicationContext, TtsMode.ON_DEVICE)
     private val stt = SpeechToText(context.applicationContext, SttMode.ON_DEVICE)
-    private var onAnswer: ((Boolean?) -> Unit)? = null
+    /** 듣고 있는 질문. 들은 말(못 들으면 "")을 한 번 받는다 */
+    private var onAnswer: ((String) -> Unit)? = null
+    /** 지금 묻는 까닭 (제안 답·운전자 알림). 다른 까닭의 cancel로 끊기지 않게 한다 */
+    var purpose: String? = null; private set
     private var listenAfterSpeech = false
     var onState: (State) -> Unit = {}
 
@@ -78,17 +116,20 @@ class VoiceGuide(context: Context) {
     }
 
     /** 묻고 나서 한 번 듣는다. 답은 한 번만 온다 */
-    fun ask(text: String, answer: (Boolean?) -> Unit) {
-        onAnswer = answer
+    fun ask(text: String, answer: (Boolean?) -> Unit) = listen(text, PROPOSAL) { answer(parseAnswer(it)) }
+
+    /** 묻고 나서 들은 말을 그대로 한 번 넘긴다 (못 들으면 "") */
+    fun listen(text: String, why: String, heard: (String) -> Unit) {
+        onAnswer = heard; purpose = why
         listenAfterSpeech = true
         state(State.Speaking)
         tts.speak(text, true)
     }
 
-    /** 답을 기다리던 질문을 없앤다 (화면에서 먼저 답했을 때) */
-    fun cancel() {
-        if (onAnswer == null) return
-        onAnswer = null; listenAfterSpeech = false
+    /** 답을 기다리던 질문을 없앤다 (화면에서 먼저 답했을 때). why를 주면 그 까닭의 질문일 때만 */
+    fun cancel(why: String? = null) {
+        if (onAnswer == null || (why != null && why != purpose)) return
+        onAnswer = null; purpose = null; listenAfterSpeech = false
         main.removeCallbacks(giveUp)
         runCatching { tts.stop() }; runCatching { stt.stop() }
         state(State.Idle)
@@ -109,16 +150,21 @@ class VoiceGuide(context: Context) {
 
     private fun heard(text: String) {
         val answer = onAnswer ?: return
-        onAnswer = null
+        onAnswer = null; purpose = null
         main.removeCallbacks(giveUp)
         Log.i(TAG, "heard '$text'")
         state(State.Heard(text))
-        answer(parseAnswer(text))
+        answer(text)
     }
 
     private fun state(s: State) { onState(s) }
 
     fun release() { runCatching { stt.release() }; runCatching { tts.release() } }
 
-    private companion object { const val TAG = "VoiceGuide"; const val LISTEN_MS = 8_000L }
+    companion object {
+        const val PROPOSAL = "proposal"
+        const val DRIVER_MESSAGE = "driverMessage"
+        private const val TAG = "VoiceGuide"
+        private const val LISTEN_MS = 8_000L
+    }
 }

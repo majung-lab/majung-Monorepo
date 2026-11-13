@@ -129,7 +129,11 @@ export interface VisitSnapshot {
   rating: PlaceRating | null;
   /** 동승자에게만, 탑승을 마친 만남 방문에서. 걸어온 동선에 지붕이 있었는지 묻는다. answer가 null이면 아직 안 답함 */
   coverageQuestion: CoverageQuestion | null;
+  /** 운전자가 마지막으로 말로 보낸 알림 */
+  driverMessage: DriverMessage | null;
 }
+/** 운전자가 말로 보낸 짧은 알림. LATE: N분쯤 늦어요(minutes 없으면 조금), ALMOST: 거의 다 왔어요, WAIT_INSIDE: 안에서 기다려 주세요 */
+export interface DriverMessage { kind: 'LATE' | 'ALMOST' | 'WAIT_INSIDE'; minutes: number | null; sentAt: string }
 export interface CoverageQuestion { from: string; to: string; answer: boolean | null }
 export interface CoverageVoteRequest extends MutationRequest { covered: boolean }
 export interface CreateVisitRequest {
@@ -154,6 +158,8 @@ export interface UpdateVisitRequest extends MutationRequest {
   passengerConditions?: MoveConditions;
   parkingFloor?: string | null;
   vehicle?: { lat: number | null; lng: number | null; etaSec: number | null; navResult?: 'set' | 'failed' | 'ended' };
+  /** Driver-only. 말로 보낸 짧은 알림. minutes는 LATE에만 */
+  driverMessage?: { kind: DriverMessage['kind']; minutes?: number };
 }
 /** Exactly one of accessPointId (registered point) or location (free map pin). */
 export interface CreateProposalRequest extends MutationRequest { accessPointId?: string; location?: { lat: number; lng: number }; reason?: string }

@@ -1,6 +1,6 @@
 // W01 방문 카드 · W05 변경 결과 알림
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FacilityWeather, MoveConditions } from '@majung/shared';
+import type { DriverMessage, FacilityWeather, MoveConditions } from '@majung/shared';
 import { useNavigate } from 'react-router-dom';
 import KakaoMap, { type MapHandle, type MapMarker } from '../../features/map/KakaoMap';
 import { pointPosition, useNow, useVisit } from '../../data/store';
@@ -18,6 +18,7 @@ const STEPS = ['출발 준비', '이동 중', '도착'];
 const NEXT_READINESS = { READY: 'HEADING_OUT', HEADING_OUT: 'AT_LOBBY' } as const;
 const READINESS_BUTTON = { READY: '지금 나갈게요', HEADING_OUT: '로비에 도착했어요', AT_LOBBY: '로비에 있어요 · 전달됨' } as const;
 const CONDITIONS: [keyof MoveConditions, string][] = [['stroller', '유모차'], ['luggage', '짐 많음'], ['avoidStairs', '계단 피하기'], ['indoorOnly', '실내로만']];
+const driverWords = (m: DriverMessage) => m.kind === 'LATE' ? (m.minutes ? `${m.minutes}분쯤 늦어요` : '조금 늦어요') : m.kind === 'ALMOST' ? '거의 다 왔어요' : '안에서 기다려 주세요';
 // 처음 예상보다 이만큼(분) 늦어지면 동승자에게 알린다
 const LATE_MIN = 5;
 const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -25,7 +26,7 @@ const hhmm = (t: number | string) => new Date(t).toLocaleTimeString('ko-KR', { h
 export default function VisitPage() {
   const navigate = useNavigate();
   const { snapshot, token, busy, position: me, positionError, mutate } = useVisit();
-  const { visit, facility, vehicle, proposals, passengerWaitSpot, passengerConditions: conditions } = snapshot;
+  const { visit, facility, vehicle, proposals, passengerWaitSpot, passengerConditions: conditions, driverMessage } = snapshot;
   const now = useNow();
   const meet = facility.accessPoints.find((p) => p.id === visit.confirmedAccessPointId)!;
   const meetPos = pointPosition(meet);
@@ -152,6 +153,7 @@ export default function VisitPage() {
           </div>
           {!arrived && etaSec != null && <div><p className="sub">도착 예정</p><p className="eta-at">{hhmm(now + etaSec * 1000)}</p></div>}
         </div>
+        {driverMessage && <p className="driver-message" role="status"><span className="driver-message-from">운전자</span>{driverWords(driverMessage)}<span className="driver-message-at">{hhmm(driverMessage.sentAt)}</span></p>}
         <ol className="steps">{STEPS.map((s, i) => <li key={s} className={i <= step ? 'done' : undefined} aria-current={i === step ? 'step' : undefined}>{s}</li>)}</ol>
         <div className="place">
           <div className="place-body">

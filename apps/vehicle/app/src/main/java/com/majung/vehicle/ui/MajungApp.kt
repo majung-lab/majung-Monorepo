@@ -168,6 +168,15 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
                 onCancelVisit = if (driving) null else ({ model.phase("CANCELLED") { finish() } }),
                 navigationStatus = model.naviStatus?.label ?: when (snapshot?.vehicle?.navResult) { "set" -> NaviStatus.GUIDING.label; "failed" -> NaviStatus.FAILED.label; "ended" -> NaviStatus.ENDED.label; else -> "내비 연결 전" },
                 onShowNavi = model::showNavi,
+                onSpeak = if (model.canSpeak && selectedMode == VisitMode.PICKUP) model::speakMessage else null,
+                // voiceState(관찰되는 값)를 먼저 읽어야 상태가 바뀔 때 다시 그린다. voicePurpose는 함께 바뀐다
+                speakNote = when (model.voiceState) {
+                    VoiceGuide.State.Speaking -> if (model.voicePurpose == VoiceGuide.DRIVER_MESSAGE) "무엇을 전할지 묻고 있어요" else null
+                    VoiceGuide.State.Listening -> if (model.voicePurpose == VoiceGuide.DRIVER_MESSAGE) "듣고 있어요 · 예: ‘10분 늦어’" else null
+                    else -> null
+                } ?: snapshot?.driverMessage?.let { m ->
+                    "보낸 알림 · " + when (m.kind) { "LATE" -> m.minutes?.let { "${it}분쯤 늦어요" } ?: "조금 늦어요"; "ALMOST" -> "거의 다 왔어요"; else -> "안에서 기다려 주세요" } + " " + formatClock(m.sentAt)
+                },
                 onRetryNavi = if (model.naviStatus == NaviStatus.FAILED || model.naviStatus == NaviStatus.ENDED || (model.naviStatus == null && snapshot?.vehicle?.navResult in listOf("failed", "ended"))) model::retryNavi else null,
                 banner = ownResult?.let { proposal -> {
                     val result = when (proposal.status) { "ACCEPTED" -> ProposalResult.ACCEPTED; "REJECTED" -> ProposalResult.REJECTED; "CANCELLED" -> ProposalResult.CANCELLED_BY_ME; else -> ProposalResult.TIMEOUT }
@@ -247,6 +256,9 @@ fun MajungApp(uxRestriction: UxRestrictionWatcher, model: VehicleViewModel = vie
 private fun formatTime(value: String?): String = try {
     DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(ZoneId.systemDefault()).format(Instant.parse(value))
 } catch (_: Exception) { "-" }
+private fun formatClock(value: String?): String = try {
+    DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.parse(value))
+} catch (_: Exception) { "" }
 private fun phaseLabel(phase: String): String = when (phase) {
     "COMPLETED" -> "완료"; "CANCELLED" -> "취소"; "ARRIVED" -> "도착"; "MOVING" -> "이동 중"; else -> "준비 중"
 }

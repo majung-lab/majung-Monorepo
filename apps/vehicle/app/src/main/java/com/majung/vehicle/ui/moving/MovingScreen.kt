@@ -57,6 +57,10 @@ fun MovingScreen(
     /** 도착지 날씨 한 줄. null이면 숨김 */
     weather: String? = null,
     rainy: Boolean = false,
+    /** 말로 가족에게 알리기. null이면 숨김 (음성 엔진 없음) */
+    onSpeak: (() -> Unit)? = null,
+    /** 말로 알리기 상태나 마지막으로 보낸 알림 한 줄 */
+    speakNote: String? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(Ink.bg).padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
@@ -91,6 +95,16 @@ fun MovingScreen(
                     if (rainy) Icon(painterResource(R.drawable.ic_rain_small), null, Modifier.padding(end = 8.dp), tint = Color.Unspecified)
                     Text(it, color = if (rainy) Ink.text else Ink.sub, fontSize = 18.sp)
                 }
+            }
+            if (onSpeak != null || speakNote != null) Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                onSpeak?.let {
+                    Text(
+                        "말로 알리기",
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(Ink.surface).clickable(onClick = it).padding(horizontal = 14.dp, vertical = 8.dp),
+                        Ink.accent, 18.sp, fontWeight = FontWeight.Bold,
+                    )
+                }
+                speakNote?.let { Text(it, Modifier.padding(start = 12.dp), Ink.sub, 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
         Column(Modifier.width(300.dp).padding(top = 54.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

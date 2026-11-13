@@ -36,7 +36,10 @@ data class VehicleStatusDto(val lat: Double? = null, val lng: Double? = null, va
 @Serializable
 data class PlaceRatingDto(val rating: Int, val tags: List<String>, val comment: String? = null)
 @Serializable
-data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null, val passengerWaitSpot: WaitSpotDto? = null, val passengerConditions: MoveConditionsDto = MoveConditionsDto())
+data class VisitSnapshot(val visit: VisitDto, val role: String, val facility: FacilityDto, val proposals: List<MeetingProposalDto>, val vehicle: VehicleStatusDto? = null, val rating: PlaceRatingDto? = null, val passengerWaitSpot: WaitSpotDto? = null, val passengerConditions: MoveConditionsDto = MoveConditionsDto(), val driverMessage: DriverMessageDto? = null)
+/** 운전자가 말로 보낸 마지막 알림 (LATE·ALMOST·WAIT_INSIDE) */
+@Serializable
+data class DriverMessageDto(val kind: String, val minutes: Int? = null, val sentAt: String)
 /** 동승자가 '지금 여기 있어요'로 고른 곳. walkMinutes는 거기서 만날 곳까지, 동선 정보가 없으면 null */
 @Serializable
 data class WaitSpotDto(val id: String, val name: String, val floor: String? = null, val description: String = "", val walkMinutes: Int? = null, val covered: Boolean = false)
