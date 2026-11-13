@@ -1,11 +1,16 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { AccessPoint, CreateProposalRequest, MoveConditions, PassengerWaitSpot, Weather, WaitSpotOption, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
+import type { AccessPoint, CoverageQuestion, CoverageVoteRequest, CreateProposalRequest, MoveConditions, PassengerWaitSpot, Weather, WaitSpotOption, CreateVisitRequest, Facility, HistoryEntry, MeetingProposal, MutationRequest, RateVisitRequest, RespondProposalRequest, Role, UpdateVisitRequest, Visit, VisitSession, VisitSnapshot } from '@majung/shared';
 import type { Db } from '../../db/index.ts';
 import { HttpError } from '../../common/errors.ts';
 import { rankAccessPoints, type RouteLink } from '../weather/weather.ts';
 
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
+/** 지붕 표가 이만큼 모이고 한쪽이 이 비율 이상이면 시드 값 대신 쓴다 */
+export const COVERAGE_MIN_VOTES = 3;
+export const COVERAGE_AGREE = 0.7;
+/** 동선(connection) 별칭을 받아, 표로 확정된 지붕 여부가 있으면 그것을, 없으면 시드 값을 내는 SQL 식 */
+const coveredSql = (cn:string) => `COALESCE((SELECT CASE WHEN COUNT(*)>=${COVERAGE_MIN_VOTES} AND SUM(vote.covered)>=COUNT(*)*${COVERAGE_AGREE} THEN 1 WHEN COUNT(*)>=${COVERAGE_MIN_VOTES} AND COUNT(*)-SUM(vote.covered)>=COUNT(*)*${COVERAGE_AGREE} THEN 0 END FROM api_coverage_vote vote WHERE vote.connection_id=${cn}.id),${cn}.covered)`;
 const FREE_PIN_NAME = '지도에서 고른 위치';
 const FREE_PIN_NOTE = '확인되지 않은 위치예요. 차를 세우기 어려울 수 있어요';
 const phaseFromDb = { created: 'PREPARING', moving: 'MOVING', arrived: 'ARRIVED', boarded: 'COMPLETED', ended: 'COMPLETED', cancelled: 'CANCELLED' } as const;
@@ -41,7 +46,7 @@ export function createVisitRepository(db: Db) {
   }
   function connection(apId:number) {
     return one<{id:number;wait_spot_id:number;name:string;floor:string|null;spot_description:string|null;walk_minutes:number;covered:number;description:string|null}>(
-      `SELECT cn.*, ws.name, ws.floor, ws.description AS spot_description FROM connection cn
+      `SELECT cn.id, cn.access_point_id, cn.wait_spot_id, cn.walk_minutes, cn.description, ${coveredSql('cn')} AS covered, ws.name, ws.floor, ws.description AS spot_description FROM connection cn
        JOIN access_point ap ON ap.id=cn.access_point_id
        JOIN wait_spot ws ON ws.id=cn.wait_spot_id AND ws.facility_id=ap.facility_id AND ws.active=1
        WHERE cn.access_point_id=? ORDER BY cn.walk_minutes,cn.id LIMIT 1`,apId);
@@ -49,7 +54,7 @@ export function createVisitRepository(db: Db) {
   /** 이 지점까지 동선이 있는 대기 지점들, 가까운 순 */
   function waitSpots(apId:number):WaitSpotOption[] {
     return all<{id:number;name:string;floor:string|null;description:string|null;walk_minutes:number;covered:number}>(
-      `SELECT ws.id, ws.name, ws.floor, ws.description, MIN(cn.walk_minutes) AS walk_minutes, MAX(cn.covered) AS covered FROM connection cn
+      `SELECT ws.id, ws.name, ws.floor, ws.description, MIN(cn.walk_minutes) AS walk_minutes, MAX(${coveredSql('cn')}) AS covered FROM connection cn
        JOIN access_point ap ON ap.id=cn.access_point_id
        JOIN wait_spot ws ON ws.id=cn.wait_spot_id AND ws.facility_id=ap.facility_id AND ws.active=1
        WHERE cn.access_point_id=? GROUP BY ws.id ORDER BY walk_minutes, ws.id`,apId)
@@ -58,7 +63,7 @@ export function createVisitRepository(db: Db) {
   /** 대기 지점 → 승하차 구역(id)별 동선 */
   function routeLinks(waitSpotId:number):Map<string,RouteLink> {
     return new Map(all<{access_point_id:number;walk_minutes:number;covered:number;no_stairs:number;stroller_ok:number}>(
-      'SELECT access_point_id,walk_minutes,covered,no_stairs,stroller_ok FROM connection WHERE wait_spot_id=?',waitSpotId)
+      `SELECT cn.access_point_id,cn.walk_minutes,${coveredSql('cn')} AS covered,cn.no_stairs,cn.stroller_ok FROM connection cn WHERE cn.wait_spot_id=?`,waitSpotId)
       .map(c=>[String(c.access_point_id),{walkMinutes:c.walk_minutes,covered:!!c.covered,noStairs:!!c.no_stairs,strollerOk:!!c.stroller_ok}]));
   }
   function facilities():Facility[] {
@@ -108,7 +113,23 @@ export function createVisitRepository(db: Db) {
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
       vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,plannedArrivalAt:extra?.planned_arrival_at??null,navResumedAt:extra?.nav_ended_at?null:extra?.nav_resumed_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
-      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id)};
+      passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id),coverageQuestion:a.role==='passenger'?coverageQuestion(v,extra?.passenger_wait_spot_id??null):null};
+  }
+  /** 완료된 만남 방문에서 동승자가 걸어온 동선. 고른 대기 지점이 있으면 그 동선, 없으면 만날 곳의 기본 동선 */
+  function walkedConnection(v:VisitRow,waitSpotId:number|null) {
+    const apId=Number(toVisit(v).confirmedAccessPointId);
+    if(v.mode==='parking'||phaseFromDb[v.status]!=='COMPLETED'||!apId) return null;
+    const byWait=waitSpotId!=null?one<{id:number;wait_spot_id:number}>('SELECT id,wait_spot_id FROM connection WHERE access_point_id=? AND wait_spot_id=?',apId,waitSpotId):undefined;
+    const cn=byWait??connection(apId);
+    if(!cn) return null;
+    const names=one<{from:string;to:string}>('SELECT ws.name AS "from", ap.name AS "to" FROM wait_spot ws, access_point ap WHERE ws.id=? AND ap.id=?',cn.wait_spot_id,apId)!;
+    return {id:cn.id,...names};
+  }
+  function coverageQuestion(v:VisitRow,waitSpotId:number|null):CoverageQuestion|null {
+    const cn=walkedConnection(v,waitSpotId);
+    if(!cn) return null;
+    const vote=one<{covered:number}>('SELECT covered FROM api_coverage_vote WHERE visit_id=?',v.id);
+    return {from:cn.from,to:cn.to,answer:vote?!!vote.covered:null};
   }
   function conditions(visitId:string):MoveConditions {
     const json=one<{conditions_json:string|null}>("SELECT conditions_json FROM participant WHERE visit_id=? AND role='passenger'",visitId)?.conditions_json;
@@ -271,6 +292,17 @@ export function createVisitRepository(db: Db) {
       run('INSERT INTO place_rating (visit_id,candidate_id,rating,tags_json,comment) VALUES (?,?,?,?,?)',v.id,(v.mode==='parking'?v.parking_candidate_id:v.confirmed_candidate_id)!,input.rating,JSON.stringify(input.tags),input.comment??null);
     });
   }
+  /** 동승자가 탑승 뒤 '오는 길에 지붕이 있었나요?'에 답한다. 방문마다 한 번 */
+  function voteCoverage(token:string,input:CoverageVoteRequest) {
+    return mutate(token,'coverage',input,(a,v)=>{
+      requireRole(a,'passenger');
+      if(phaseFromDb[v.status]!=='COMPLETED') return error(409,'VISIT_NOT_COMPLETED','탑승을 마친 뒤 답해 주세요');
+      const spot=one<{passenger_wait_spot_id:number|null}>('SELECT passenger_wait_spot_id FROM api_visit_state WHERE visit_id=?',v.id)?.passenger_wait_spot_id??null;
+      const cn=walkedConnection(v,spot) ?? error(400,'NO_ROUTE','이 방문에는 물어볼 동선이 없어요');
+      if(one('SELECT visit_id FROM api_coverage_vote WHERE visit_id=?',v.id)) return error(409,'ALREADY_VOTED','이미 답했어요');
+      run('INSERT INTO api_coverage_vote (visit_id,connection_id,covered,created_at) VALUES (?,?,?,?)',v.id,cn.id,input.covered?1:0,iso());
+    });
+  }
   /** 이 운전자가 이 시설에서 지점별로 남긴 평가 평균. 다음 추천 순서에 쓴다 */
   function pastRatings(driverDeviceId:string,facilityId:number):Map<string,number> {
     return new Map(all<{ap:number;avg:number}>(
@@ -291,7 +323,7 @@ export function createVisitRepository(db: Db) {
     const passenger=one<{token:string}>("SELECT token FROM participant WHERE visit_id=? AND role='passenger'",v.id) ?? error(404,'VISIT_NOT_FOUND','방문을 찾을 수 없어요');
     return {visitId:v.id,passengerToken:passenger.token,facilityName:visitFacility(v).name};
   }
-  return {facilities,create,snapshot,update,propose,respond,rate,history,pastRatings,inviteTarget,passengerRoute,
+  return {facilities,create,snapshot,update,propose,respond,rate,voteCoverage,history,pastRatings,inviteTarget,passengerRoute,
     subscribe(token:string,listener:()=>void) {
       const a=actor(token);const set=listeners.get(a.visit_id)??new Set<()=>void>();set.add(listener);listeners.set(a.visit_id,set);
       return ()=>{set.delete(listener);if(!set.size) listeners.delete(a.visit_id);};

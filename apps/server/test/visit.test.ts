@@ -341,3 +341,41 @@ test('안내를 끈 뒤 다시 안내하면 다시 시작한 시각을 알려 �
     assert.equal(s.vehicle.navResumedAt,null);
   }finally{await app.close();db.close();}
 });
+
+test('탑승 뒤 동승자가 오는 길의 지붕 여부에 답하고, 표가 모이면 추천 정보가 바뀐다', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const seeded=(await app.inject({method:'GET',url:'/api/facilities'})).json()[0].accessPoints.find((p:{id:string})=>p.id==='2');
+    // 한 방문을 끝까지 진행하고 동승자로 답한다
+    const finish=async(n:number,covered:boolean|null)=>{
+      const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:`cov-create-${n}`}})).json();
+      const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+      const patch=async(url:string,requestId:string,version:number,payload:object)=>(await app.inject({method:'PATCH',url,payload:{requestId,version,...payload}})).json();
+      let s=await patch(passenger,`cov-spot-${n}`,1,{passengerWaitSpotId:'1'});
+      // 끝나기 전에는 묻지 않고, 답해도 받지 않는다
+      assert.equal(s.coverageQuestion,null);
+      const early=await app.inject({method:'POST',url:passenger+'/coverage',payload:{requestId:`cov-early-${n}`,version:s.visit.version,covered:true}});
+      assert.equal(early.statusCode,409);
+      for(const phase of ['MOVING','ARRIVED','COMPLETED']) s=await patch(driver,`cov-${phase}-${n}`,s.visit.version,{phase});
+      assert.equal(s.coverageQuestion,null); // 운전자에게는 묻지 않는다
+      s=(await app.inject({method:'GET',url:passenger})).json();
+      assert.equal(s.coverageQuestion.answer,null); assert.ok(s.coverageQuestion.from); assert.ok(s.coverageQuestion.to);
+      if(covered===null) return;
+      const driverVote=await app.inject({method:'POST',url:driver+'/coverage',payload:{requestId:`cov-driver-${n}`,version:s.visit.version,covered}});
+      assert.equal(driverVote.statusCode,403);
+      s=(await app.inject({method:'POST',url:passenger+'/coverage',payload:{requestId:`cov-vote-${n}`,version:s.visit.version,covered}})).json();
+      assert.equal(s.coverageQuestion.answer,covered);
+      const again=await app.inject({method:'POST',url:passenger+'/coverage',payload:{requestId:`cov-again-${n}`,version:s.visit.version,covered}});
+      assert.equal(again.statusCode,409);
+    };
+    const coveredNow=async()=>(await app.inject({method:'GET',url:'/api/facilities'})).json()[0].accessPoints.find((p:{id:string})=>p.id==='2').covered;
+    const flip=!seeded.covered;
+    await finish(1,flip); await finish(2,flip);
+    assert.equal(await coveredNow(),seeded.covered); // 두 표로는 바꾸지 않는다
+    await finish(3,!flip);
+    assert.equal(await coveredNow(),seeded.covered); // 2:1(67%)은 70%가 안 된다
+    await finish(4,flip);
+    assert.equal(await coveredNow(),flip); // 3:1(75%)이면 표를 따른다
+    await finish(5,null);
+  }finally{await app.close();db.close();}
+});

@@ -176,6 +176,23 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snapshot' }
         default: { $ref: '#/components/responses/Error' }
+  /api/visits/{token}/coverage:
+    parameters:
+      - { $ref: '#/components/parameters/Token' }
+    post:
+      operationId: voteCoverage
+      description: >
+        Passenger alone answers once, after COMPLETED, whether the route they walked (chosen wait spot →
+        meeting point, or the meeting point's default route) was covered. Once a route has at least 3 votes
+        and one side has 70% or more, that answer replaces the seeded covered value in facility data and ranking.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoverageVoteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Snapshot' }
+        default: { $ref: '#/components/responses/Error' }
   /api/visits/{token}/invites:
     parameters:
       - { $ref: '#/components/parameters/Token' }
@@ -386,7 +403,7 @@ components:
         comment: { type: [string, 'null'] }
     VisitSnapshot:
       type: object
-      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, passengerConditions, rating]
+      required: [visit, role, facility, proposals, vehicle, passengerLocation, passengerWaitSpot, passengerConditions, rating, coverageQuestion]
       properties:
         visit: { $ref: '#/components/schemas/Visit' }
         role: *role
@@ -432,6 +449,14 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/PlaceRating' }
             - { type: 'null' }
+        coverageQuestion:
+          description: Passenger only, on a COMPLETED meeting visit with a known route. answer null = not answered yet.
+          type: [object, 'null']
+          required: [from, to, answer]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            answer: { type: [boolean, 'null'] }
     VisitSession:
       type: object
       required: [visit, driverToken, passengerToken]
@@ -556,6 +581,14 @@ components:
         rating: *rating
         tags: *tags
         comment: { type: string, maxLength: 1000 }
+    CoverageVoteRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, version, covered]
+      properties:
+        requestId: *requestId
+        version: *version
+        covered: { type: boolean }
 x-websocket:
   path: /ws/visits/{token}
   description: |
