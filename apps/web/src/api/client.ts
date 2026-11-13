@@ -43,5 +43,7 @@ export const api = {
   conditions: (token: string, version: number, passengerConditions: MoveConditions) => mutation(path(token), 'PATCH', version, { passengerConditions }),
   propose: (token: string, version: number, target: string | { lat: number; lng: number }, reason?: string) => mutation(`${path(token)}/proposals`, 'POST', version, { ...(typeof target === 'string' ? { accessPointId: target } : { location: target }), ...(reason ? { reason } : {}) }),
   respond: (token: string, version: number, id: string, accept: boolean) => mutation(`${path(token)}/proposals/${encodeURIComponent(id)}/respond`, 'POST', version, { accept }),
+  /** 탑승 뒤 '오는 길에 지붕이 있었나요?' 답. 방문마다 한 번 */
+  coverage: (token: string, version: number, covered: boolean) => mutation(`${path(token)}/coverage`, 'POST', version, { covered }),
   cancel: (token: string, version: number, id: string) => mutation(`${path(token)}/proposals/${encodeURIComponent(id)}`, 'DELETE', version),
 };

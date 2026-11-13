@@ -127,7 +127,11 @@ export interface VisitSnapshot {
   passengerWaitSpot: PassengerWaitSpot | null;
   passengerConditions: MoveConditions;
   rating: PlaceRating | null;
+  /** 동승자에게만, 탑승을 마친 만남 방문에서. 걸어온 동선에 지붕이 있었는지 묻는다. answer가 null이면 아직 안 답함 */
+  coverageQuestion: CoverageQuestion | null;
 }
+export interface CoverageQuestion { from: string; to: string; answer: boolean | null }
+export interface CoverageVoteRequest extends MutationRequest { covered: boolean }
 export interface CreateVisitRequest {
   requestId: string;
   facilityId: string;
