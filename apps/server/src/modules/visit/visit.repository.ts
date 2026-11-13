@@ -94,7 +94,7 @@ export function createVisitRepository(db: Db) {
   }
   function snapshot(token:string):VisitSnapshot {
     const a=actor(token); const v=row(a.visit_id);
-    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
+    const extra=one<{passenger_lat:number|null;passenger_lng:number|null;passenger_at:string|null;passenger_wait_spot_id:number|null;nav_ended_at:string|null;planned_arrival_at:string|null}>('SELECT * FROM api_visit_state WHERE visit_id=?',v.id);
     const meetId=Number(toVisit(v).confirmedAccessPointId);
     const spot=extra?.passenger_wait_spot_id!=null?visitFacility(v).waitSpots.find(w=>w.id===String(extra.passenger_wait_spot_id)):undefined;
     const link=spot?routeLinks(Number(spot.id)).get(String(meetId)):undefined;
@@ -107,7 +107,7 @@ export function createVisitRepository(db: Db) {
         ...(p.reason_text?{reason:p.reason_text}:{}),...(p.status==='expired'&&p.responder_id!==null&&p.responder_id!==p.proposer_id?{cancelReason:'NAV_ENDED' as const}:{}),createdAt:normalizeTime(p.created_at),expiresAt:new Date(Date.parse(normalizeTime(p.created_at))+PROPOSAL_TTL_MS).toISOString(),
       }));
     return {visit:toVisit(v),role:a.role.toUpperCase() as Role,facility:visitFacility(v),proposals,
-      vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
+      vehicle:v.last_vehicle_at?{lat:v.last_lat,lng:v.last_lng,etaSec:extra?.nav_ended_at?null:v.last_eta_sec,navResult:extra?.nav_ended_at?'ended':v.last_nav_result,navEndedAt:extra?.nav_ended_at??null,plannedArrivalAt:extra?.planned_arrival_at??null,recordedAt:normalizeTime(v.last_vehicle_at)}:null,
       passengerLocation:extra?.passenger_lat!=null&&extra.passenger_lng!=null&&extra.passenger_at?{lat:extra.passenger_lat,lng:extra.passenger_lng,recordedAt:extra.passenger_at}:null,passengerWaitSpot,passengerConditions:conditions(v.id),rating:rating(v.id)};
   }
   function conditions(visitId:string):MoveConditions {
@@ -185,7 +185,7 @@ export function createVisitRepository(db: Db) {
         if(!candidate) return error(400,'INVALID_ACCESS_POINT','이 방문에 사용할 수 없는 장소예요');
         // 장소가 바뀌면 이전 장소의 내비 결과는 더 이상 맞지 않는다
         run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,candidate.id,v.id,v.version);
-        run('UPDATE api_visit_state SET nav_ended_at=NULL WHERE visit_id=?',v.id);
+        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL WHERE visit_id=?',v.id);
       }
       if(input.phase!==undefined) {
         const current=phaseFromDb[v.status];
@@ -221,6 +221,8 @@ export function createVisitRepository(db: Db) {
         const stillEnded=ended||(!pos.navResult&&!!one<{nav_ended_at:string|null}>('SELECT nav_ended_at FROM api_visit_state WHERE visit_id=?',v.id)?.nav_ended_at);
         const eta=stillEnded?null:pos.etaSec;
         const nav=ended?null:pos.navResult??null;
+        // 처음 받은 도착 예정 시각을 약속으로 남긴다. 지금 예상과 비교해 동승자에게 늦어짐을 알린다. 만날 곳이 바뀌면 지운다
+        if(eta!=null&&v.status==='moving') run('UPDATE api_visit_state SET planned_arrival_at=? WHERE visit_id=? AND planned_arrival_at IS NULL',new Date(Date.now()+eta*1000).toISOString(),v.id);
         run('INSERT INTO vehicle_update (visit_id,lat,lng,eta_sec,nav_result,nav_target_access_point_id) VALUES (?,?,?,?,?,?)',v.id,pos.lat,pos.lng,eta,nav,Number(toVisit(v).confirmedAccessPointId));
         run('UPDATE visit SET last_lat=?,last_lng=?,last_eta_sec=?,last_nav_result=?,last_vehicle_at=? WHERE id=? AND version=?',pos.lat,pos.lng,eta,nav??v.last_nav_result,iso(),v.id,v.version);
       }
@@ -256,7 +258,7 @@ export function createVisitRepository(db: Db) {
       run('UPDATE proposal SET status=?,responder_id=?,responded_via=\'touch\',responded_at=? WHERE id=?',cancel?'expired':accept?'accepted':'rejected',a.id,iso(),p.id);
       if(accept) {
         run(`UPDATE visit SET ${v.mode==='parking'?'parking_candidate_id':'confirmed_candidate_id'}=?,last_nav_result=NULL WHERE id=? AND version=?`,p.candidate_id,v.id,v.version);
-        run('UPDATE api_visit_state SET nav_ended_at=NULL WHERE visit_id=?',v.id);
+        run('UPDATE api_visit_state SET nav_ended_at=NULL,planned_arrival_at=NULL WHERE visit_id=?',v.id);
       }
     });
   }

@@ -457,6 +457,7 @@ button:disabled { cursor: default; opacity: .65; }
 
 /* 운전자가 내비 안내를 끈 알림 */
 .nav-ended-sub { margin-top: 4px; }
+.delay-note { margin-top: 6px; padding: 4px 10px; border-radius: 8px; background: #fff4e6; color: var(--accent-ink); font-size: 14px; font-weight: 600; display: inline-block; }
 .dialog-backdrop {
   position: fixed;
   inset: 0;
