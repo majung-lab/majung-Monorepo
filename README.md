@@ -81,8 +81,10 @@
 
 | 구분 | 위치 |
 |---|---|
-| GitHub Release | [majung-Monorepo Releases](https://github.com/majung-lab/majung-Monorepo/releases/latest) → `majung-vehicle-0.1.0-debug.apk` |
-| 직접 빌드 | `cd apps/vehicle && ./gradlew assembleDebug` → `apps/vehicle/app/build/outputs/apk/debug/app-debug.apk` |
+| Release APK (서명됨) | [`apk/ITDA_majung_release.apk`](apk/ITDA_majung_release.apk) |
+| 직접 빌드 | `cd apps/vehicle && ./gradlew assembleRelease` → `apps/vehicle/app/build/outputs/apk/release/app-release.apk` (서명 키 `apps/vehicle/keystore.properties`가 없으면 서명 없는 APK가 나옵니다. 그때는 `assembleDebug`를 씁니다) |
+
+차량 앱 APK만 있습니다. 가족(동승자) 화면은 앱 설치 없이 QR 링크로 여는 웹입니다.
 
 APK는 에뮬레이터에서 서버를 `http://10.0.2.2:4000`, 가족 웹을 `http://10.0.2.2:5173`으로 찾도록 빌드되어 있습니다. 따라서 APK를 설치하기 전에 아래 [1. 서버와 가족 웹](#1-서버와-가족-웹)을 같은 PC에서 먼저 켜 둡니다.
 
@@ -129,7 +131,7 @@ npm run dev:web        # http://localhost:5173 (별도 터미널)
 ```bash
 cd apps/vehicle
 ./gradlew assembleDebug
-adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5554 install -r --user 10 app/build/outputs/apk/debug/app-debug.apk   # 또는 ../../apk/ITDA_majung_release.apk
 adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.POST_NOTIFICATIONS
 adb -s emulator-5554 shell appops set --user 10 com.majung.vehicle SYSTEM_ALERT_WINDOW allow   # 내비 위 배너
 adb -s emulator-5554 shell pm grant --user 10 com.majung.vehicle android.permission.RECORD_AUDIO   # 음성 응답

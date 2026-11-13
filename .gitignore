@@ -10,6 +10,9 @@ apps/vehicle/.kotlin/
 apps/vehicle/build/
 apps/vehicle/app/build/
 apps/vehicle/local.properties
+apps/vehicle/keystore.properties
+*.jks
+*.keystore
 .idea/
 .DS_Store
 
