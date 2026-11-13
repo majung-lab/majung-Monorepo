@@ -82,7 +82,7 @@ class VoiceGuide(context: Context) {
 
     init {
         tts.initialize(object : ai.pleos.playground.tts.listener.OnInitializeListener {
-            override fun onSuccess() { tts.setLocale(Locale.KOREA); Log.i(TAG, "tts ready") }
+            override fun onSuccess() = main.post { tts.setLocale(Locale.KOREA); Log.i(TAG, "tts ready"); ttsReady = true; waiting?.let { waiting = null; tts.speak(it, true) } }.let {}
             override fun onFailure(error: TtsError) { Log.w(TAG, "tts init $error") }
         })
         tts.addEventListener(object : EventListener {
@@ -108,11 +108,16 @@ class VoiceGuide(context: Context) {
         })
     }
 
+    /** 엔진이 준비되기 전에는 말이 사라지고 끝났다는 신호도 오지 않는다. 마지막 말 하나를 들고 있다가 준비되면 말한다 */
+    private var ttsReady = false
+    private var waiting: String? = null
+    private fun speak(text: String) { if (ttsReady) tts.speak(text, true) else waiting = text }
+
     /** 안내만 한다 */
     fun say(text: String) {
         listenAfterSpeech = false
         state(State.Speaking)
-        tts.speak(text, true)
+        speak(text)
     }
 
     /** 묻고 나서 한 번 듣는다. 답은 한 번만 온다 */
@@ -123,13 +128,13 @@ class VoiceGuide(context: Context) {
         onAnswer = heard; purpose = why
         listenAfterSpeech = true
         state(State.Speaking)
-        tts.speak(text, true)
+        speak(text)
     }
 
     /** 답을 기다리던 질문을 없앤다 (화면에서 먼저 답했을 때). why를 주면 그 까닭의 질문일 때만 */
     fun cancel(why: String? = null) {
         if (onAnswer == null || (why != null && why != purpose)) return
-        onAnswer = null; purpose = null; listenAfterSpeech = false
+        onAnswer = null; purpose = null; listenAfterSpeech = false; waiting = null
         main.removeCallbacks(giveUp)
         runCatching { tts.stop() }; runCatching { stt.stop() }
         state(State.Idle)

@@ -49,9 +49,11 @@ class MainActivity : ComponentActivity() {
     // adb shell am broadcast -a com.majung.vehicle.VOICE_TEST --es text 바꿔
     // 에뮬레이터 내비는 경로를 따라 움직이지 않아 도착·경로 종료 이벤트도 adb로 넣는다
     // adb shell am broadcast -a com.majung.vehicle.NAVI_TEST --es event arrived --es name "A구역 정문 승하차장"  (event: arrived | ended)
+    // '말로 알리기' 버튼 대신: adb shell am broadcast -a com.majung.vehicle.VOICE_TEST --es start message  (자동 테스트용)
     private val voiceTest = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == NAVI_TEST) model.injectNavi(intent.getStringExtra("event").orEmpty(), intent.getStringExtra("name").orEmpty())
+            else if (intent.getStringExtra("start") == "message") model.speakMessage()
             else intent.getStringExtra("text")?.let(model::injectVoice)
         }
     }
