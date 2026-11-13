@@ -71,7 +71,7 @@
 
 | 항목 | 값 |
 |------------|---|
-| 에뮬레이터               | **Pleos Connect v2.1.0** (system image `pleos_car_emulator`, Android 14 / API 34, android-automotive, arm64-v8a) |
+| 에&#8288;뮬&#8288;레&#8288;이&#8288;터 | **Pleos Connect v2.1.0** (system image `pleos_car_emulator`, Android 14 / API 34, android-automotive, arm64-v8a) |
 | 화면&nbsp;규격          | **2560 × 1440 px**, 160 dpi (AVD `hw.lcd.width/height/density`), 가로 화면. 앱은 큰 패널(높이 960dp 이상)에서 전체를 같은 비율로 키웁니다([PanelScale.kt](apps/vehicle/app/src/main/java/com/majung/vehicle/ui/theme/PanelScale.kt)) |
 | AVD&nbsp;설정         | RAM 8GB, GPU `host`, Cold boot |
 | 차량&nbsp;앱           | `com.majung.vehicle` 0.1.0 (versionCode 1), minSdk 29 · targetSdk 35 · compileSdk 35, Kotlin · Jetpack Compose, Gradle 8.13, JDK 17 |
