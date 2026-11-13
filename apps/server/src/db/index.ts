@@ -29,6 +29,7 @@ export function openDb(path: string): Db {
       if (!state.some((column) => column.name === 'passenger_wait_spot_id')) db.exec('ALTER TABLE api_visit_state ADD COLUMN passenger_wait_spot_id INTEGER REFERENCES wait_spot(id)');
       if (!state.some((column) => column.name === 'nav_ended_at')) db.exec('ALTER TABLE api_visit_state ADD COLUMN nav_ended_at TEXT');
       if (!state.some((column) => column.name === 'planned_arrival_at')) db.exec('ALTER TABLE api_visit_state ADD COLUMN planned_arrival_at TEXT');
+      if (!state.some((column) => column.name === 'nav_resumed_at')) db.exec('ALTER TABLE api_visit_state ADD COLUMN nav_resumed_at TEXT');
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     return db;

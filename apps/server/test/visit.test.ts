@@ -312,3 +312,32 @@ test('이동 중 처음 받은 도착 예정 시각을 남겨 두고, 만날 곳
     near(s.vehicle.plannedArrivalAt,200);
   }finally{await app.close();db.close();}
 });
+
+test('안내를 끈 뒤 다시 안내하면 다시 시작한 시각을 알려 주고, 다시 끄거나 장소가 바뀌면 지운다', async () => {
+  const db=openDb(':memory:'); const app=await buildApp(db,async()=>null);
+  try {
+    const session=(await app.inject({method:'POST',url:'/api/visits',payload:{...body,requestId:'resume-create'}})).json();
+    const driver=`/api/visits/${session.driverToken}`, passenger=`/api/visits/${session.passengerToken}`;
+    const patch=async(requestId:string,version:number,payload:object)=>(await app.inject({method:'PATCH',url:driver,payload:{requestId,version,...payload}})).json();
+    let s=await patch('resume-move',1,{phase:'MOVING'});
+    s=await patch('resume-set',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:600,navResult:'set'}});
+    assert.equal(s.vehicle.navResumedAt,null); // 처음 안내는 '다시'가 아니다
+    s=await patch('resume-end',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:null,navResult:'ended'}});
+    assert.equal(s.vehicle.navResumedAt,null);
+    s=await patch('resume-failed',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:null,navResult:'failed'}});
+    assert.equal(s.vehicle.navResumedAt,null); // 실패는 다시 시작이 아니다
+    s=await patch('resume-end-2',s.visit.version,{vehicle:{lat:37.54,lng:127.22,etaSec:null,navResult:'ended'}});
+    s=await patch('resume-again',s.visit.version,{vehicle:{lat:37.541,lng:127.221,etaSec:480,navResult:'set'}});
+    const resumed=s.vehicle.navResumedAt; assert.ok(resumed);
+    // 위치만 오면 그대로, 링크를 다시 열어도 같다
+    s=await patch('resume-loc',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:450}});
+    assert.equal((await app.inject({method:'GET',url:passenger})).json().vehicle.navResumedAt,resumed);
+    s=await patch('resume-end-3',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:null,navResult:'ended'}});
+    assert.equal(s.vehicle.navResumedAt,null);
+    s=await patch('resume-again-2',s.visit.version,{vehicle:{lat:37.542,lng:127.222,etaSec:400,navResult:'set'}});
+    assert.ok(s.vehicle.navResumedAt);
+    const proposed=(await app.inject({method:'POST',url:passenger+'/proposals',payload:{requestId:'resume-propose',version:s.visit.version,accessPointId:'1'}})).json();
+    s=(await app.inject({method:'POST',url:driver+`/proposals/${proposed.proposals[0].id}/respond`,payload:{requestId:'resume-accept',version:proposed.visit.version,accept:true}})).json();
+    assert.equal(s.vehicle.navResumedAt,null);
+  }finally{await app.close();db.close();}
+});

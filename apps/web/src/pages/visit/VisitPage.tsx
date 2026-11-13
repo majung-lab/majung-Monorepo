@@ -64,6 +64,16 @@ export default function VisitPage() {
     if (thenCar) choose('car');
   };
 
+  // 안내를 끈 뒤 다시 켜면 한 번 알린다. 확인한 알림은 링크를 다시 열어도 띄우지 않는다
+  const resumedKey = `majung:seen-nav-resumed:${token}`;
+  const [resumedSeen, setResumedSeen] = useState(() => { try { return localStorage.getItem(resumedKey); } catch { return null; } });
+  const showResumed = visit.phase === 'MOVING' && !navEnded && !result && !!vehicle?.navResumedAt && resumedSeen !== vehicle.navResumedAt;
+  const closeResumed = () => {
+    const at = vehicle?.navResumedAt ?? '';
+    try { localStorage.setItem(resumedKey, at); } catch { /* 저장 못 해도 이번 화면에서는 닫는다 */ }
+    setResumedSeen(at);
+  };
+
   const choose = (v: MapView) => {
     const m = map.current;
     if (!m) return;
@@ -117,6 +127,14 @@ export default function VisitPage() {
             <p className="result-sub">{meet.name}에서 만나요</p>
           </div>
           <button onClick={() => dismiss(result.id)}>확인</button>
+        </div>}
+        {showResumed && <div className="result accepted" role="status">
+          <img src={check} alt="" />
+          <div className="result-body">
+            <p className="result-title">운전자가 다시 안내를 시작했어요</p>
+            <p className="result-sub">{etaSec != null ? `약 ${Math.ceil(etaSec / 60)}분 뒤 ${meet.name}에 도착해요` : "만날 곳으로 오고 있어요"}</p>
+          </div>
+          <button onClick={closeResumed}>확인</button>
         </div>}
       </KakaoMap>
       <section className="sheet">

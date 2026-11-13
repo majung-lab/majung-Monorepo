@@ -396,7 +396,7 @@ components:
           items: { $ref: '#/components/schemas/MeetingProposal' }
         vehicle:
           type: [object, 'null']
-          required: [lat, lng, etaSec, navResult, navEndedAt, plannedArrivalAt, recordedAt]
+          required: [lat, lng, etaSec, navResult, navEndedAt, plannedArrivalAt, navResumedAt, recordedAt]
           properties:
             lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
             lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
@@ -407,6 +407,7 @@ components:
               description: ended는 운전자가 내비 안내를 끈 상태. 남은 시간은 모르고 차 위치만 계속 갱신된다
             navEndedAt: { type: [string, 'null'], format: date-time, description: 안내를 끈 시각. 다시 안내하거나 만날 곳이 바뀌면 null }
             plannedArrivalAt: { type: [string, 'null'], format: date-time, description: 이동 중 처음 받은 도착 예정 시각. 지금 예상이 이보다 늦으면 동승자에게 늦어짐을 알린다. 만날 곳이 바뀌면 다시 정한다 }
+            navResumedAt: { type: [string, 'null'], format: date-time, description: 안내를 끈 뒤 다시 안내를 시작한 시각. 다시 끄거나 만날 곳이 바뀌면 null }
             recordedAt: { type: string, format: date-time }
         passengerLocation:
           type: [object, 'null']
